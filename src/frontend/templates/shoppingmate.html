@@ -1,0 +1,2457 @@
+<!-- shoppingmate.html -->
+{{ define "shoppingmate" }}
+
+<!-- Chatbot Toggle Button -->
+<div class="chatbot-toggle" id="chatbot-toggle">Shopping Mate</div>
+
+<!-- Chatbot Container -->
+<div id="chatbot" class="chatbot-container">
+  <div class="chatbot-header">
+    <div class="logo-button">
+      Shopping Mate
+      <button id="clear-chat" class="clear-btn">Clear</button>
+    </div>
+    <span id="closeBtn" style="cursor: pointer">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        class="lucide lucide-x-icon lucide-x"
+      >
+        <path d="M18 6 6 18" />
+        <path d="m6 6 12 12" />
+      </svg>
+    </span>
+  </div>
+
+  <div class="chatbot-messages" id="chat-messages">
+    <!-- Messages will be dynamically added here -->
+  </div>
+
+  <div class="chatbot-input">
+    <input type="text" id="message-input" placeholder="Enter a task..." />
+    <button id="send-btn">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        class="lucide lucide-arrow-right-icon lucide-arrow-right"
+      >
+        <path d="M5 12h14" />
+        <path d="m12 5 7 7-7 7" />
+      </svg>
+    </button>
+  </div>
+</div>
+
+<!-- Checkout Modal -->
+<div id="checkout-modal" class="modal-overlay">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Checkout Details</h2>
+      <span class="close-modal" id="close-checkout-modal">&times;</span>
+    </div>
+    <div class="form-content">
+      <form id="checkout-form">
+        <!-- Email -->
+        <div class="form-group">
+          <label for="customer-email">Email</label>
+          <input
+            type="email"
+            id="customer-email"
+            name="email"
+            value="someone@example.com"
+            required
+          />
+        </div>
+
+        <!-- Street Address -->
+        <div class="form-group">
+          <label for="street-address">Street Address</label>
+          <input
+            type="text"
+            id="street-address"
+            name="street_address"
+            value="1600 Amphitheatre Parkway"
+            required
+          />
+        </div>
+
+        <!-- Zip Code -->
+        <div class="form-group">
+          <label for="zip-code">Zip Code</label>
+          <input
+            type="text"
+            id="zip-code"
+            name="zip_code"
+            value="94043"
+            required
+            pattern="\d{4,5}"
+          />
+        </div>
+
+        <!-- City -->
+        <div class="form-group">
+          <label for="city">City</label>
+          <input
+            type="text"
+            id="city"
+            name="city"
+            value="Mountain View"
+            required
+          />
+        </div>
+
+        <!-- State -->
+        <div class="form-group">
+          <label for="state">State</label>
+          <input type="text" id="state" name="state" value="CA" required />
+        </div>
+
+        <!-- Country -->
+        <div class="form-group">
+          <label for="country">Country</label>
+          <input
+            type="text"
+            id="country"
+            name="country"
+            value="United States"
+            required
+          />
+        </div>
+
+        <!-- Card Number -->
+        <div class="form-group">
+          <label for="card-number">Card Number</label>
+          <input
+            type="text"
+            id="card-number"
+            name="credit_card_number"
+            placeholder="1234 5678 9012 3456"
+            value="4432801561520454"
+            required
+          />
+        </div>
+
+        <!-- Expiry Month, Year, CVV -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="expiry-month">Expiry Month</label>
+            <select
+              id="expiry-month"
+              name="credit_card_expiration_month"
+              required
+            >
+              <option value="1">January</option>
+              <option value="2">February</option>
+              <option value="3">March</option>
+              <option value="4">April</option>
+              <option value="5">May</option>
+              <option value="6">June</option>
+              <option value="7">July</option>
+              <option value="8">August</option>
+              <option value="9">September</option>
+              <option value="10">October</option>
+              <option value="11">November</option>
+              <option value="12" selected>December</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="expiry-year">Expiry Year</label>
+            <select
+              id="expiry-year"
+              name="credit_card_expiration_year"
+              required
+            >
+              <option value="2024">2024</option>
+              <option value="2025" selected>2025</option>
+              <option value="2026">2026</option>
+              <option value="2027">2027</option>
+              <option value="2028">2028</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="cvv">CVV</label>
+            <input
+              type="password"
+              id="cvv"
+              name="credit_card_cvv"
+              placeholder="123"
+              value="672"
+              required
+            />
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" id="cancel-checkout" class="btn-secondary">
+            Cancel
+          </button>
+          <button type="submit" class="btn-primary">Place Order</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  // --- New FrontendAPI Class ---
+  class FrontendAPI {
+    constructor(baseUrl) {
+      this.baseUrl = baseUrl;
+    }
+
+    async callAI(message, conversationHistory, userContext) {
+      const aiResponse = await inBrowserAI(
+        message,
+        conversationHistory,
+        userContext
+      );
+
+      for (const action of aiResponse.actions) {
+        if (
+          action.product_ids &&
+          (action.task === "search" ||
+            action.task === "compare" ||
+            action.task === "gift-recommendation" ||
+            action.task === "add-to-cart")
+        ) {
+          const detailedProducts = [];
+          for (const productId of action.product_ids) {
+            try {
+              const product = await this.getProductDetails(productId);
+              detailedProducts.push(product);
+            } catch (error) {
+              console.error(
+                `Failed to get details for product ${productId}:`,
+                error
+              );
+            }
+          }
+          action.products_details = detailedProducts;
+        }
+      }
+      return aiResponse;
+    }
+
+    async getProductDetails(productId) {
+      const response = await fetch(
+        `${this.baseUrl}/product-meta/${productId}`,
+        { method: "GET" }
+      );
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      return response.json();
+    }
+
+    async addToCart(productId, quantity = 1) {
+      console.log("Initiating Add to cart Function", productId, quantity);
+
+      const response = await fetch(`${this.baseUrl}/api/cart/add`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          product_id: productId,
+          quantity: quantity.toString(),
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to add to cart`);
+      }
+      return { success: true, message: "Product added to cart." };
+    }
+
+    async emptyCart() {
+      const response = await fetch(`${this.baseUrl}/api/cart/empty`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to empty cart: ${errorText}`);
+      }
+      return { success: true, message: "Cart emptied successfully." };
+    }
+
+    async getCartItems() {
+      const response = await fetch(`${this.baseUrl}/api/cart/items`, {
+        method: "GET",
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+
+      const cartData = await response.json();
+      console.log("Fetching cart items, response:", cartData);
+
+      return cartData;
+    }
+
+    async processCheckout(orderData) {
+      const formData = new URLSearchParams();
+      for (const key in orderData) {
+        formData.append(key, orderData[key]);
+      }
+
+      const response = await fetch(`${this.baseUrl}/api/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Checkout failed: ${response.status} - ${errorText}`);
+      }
+      return { success: true, message: "Order placed successfully!" };
+    }
+
+    async getRecommendations() {
+      const response = await fetch(`${this.baseUrl}/api/recommendations`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to get recommendations: ${response.status}`);
+      }
+      return response.json();
+    }
+  }
+
+  // --- ShoppingChatbot Class ---
+  class ShoppingChatbot {
+    constructor() {
+      this.frontendAPI = new FrontendAPI("{{ $.baseUrl }}");
+      this.messages = [];
+      this.userContext = {};
+      this.isProcessing = false;
+      this.checkoutInitiated = false;
+
+      this.initializeElements();
+      this.bindEvents();
+      this.loadStoredMessages();
+      this.showGreeting();
+
+      // Make globally accessible for onclick handlers
+      window.chatbot = this;
+      window.openCheckoutModal = () => this.openCheckoutModal();
+    }
+
+    initializeElements() {
+      this.chatbotToggle = document.getElementById("chatbot-toggle");
+      this.chatbot = document.getElementById("chatbot");
+      this.closeBtn = document.getElementById("closeBtn");
+      this.clearChatBtn = document.getElementById("clear-chat");
+      this.messagesContainer = document.getElementById("chat-messages");
+      this.messageInput = document.getElementById("message-input");
+      this.sendBtn = document.getElementById("send-btn");
+      this.checkoutModal = document.getElementById("checkout-modal");
+      this.checkoutForm = document.getElementById("checkout-form");
+      this.closeCheckoutModal = document.getElementById("close-checkout-modal");
+      this.cancelCheckout = document.getElementById("cancel-checkout");
+
+      // Verify elements exist
+      console.log("Modal element:", this.checkoutModal);
+      console.log("Form element:", this.checkoutForm);
+    }
+
+    bindEvents() {
+      this.chatbotToggle.addEventListener("click", () => this.toggleChatbot());
+      this.closeBtn.addEventListener("click", () => this.closeChatbot());
+      this.clearChatBtn.addEventListener("click", () => this.clearChat());
+      this.sendBtn.addEventListener("click", () => this.sendMessage());
+      this.messageInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          this.sendMessage();
+        }
+      });
+
+      // Checkout modal events
+      if (this.closeCheckoutModal) {
+        this.closeCheckoutModal.addEventListener("click", () =>
+          this.closeCheckoutModalHandler()
+        );
+      }
+      if (this.cancelCheckout) {
+        this.cancelCheckout.addEventListener("click", () =>
+          this.closeCheckoutModalHandler()
+        );
+      }
+      if (this.checkoutForm) {
+        this.checkoutForm.addEventListener("submit", (e) =>
+          this.handleCheckoutSubmit(e)
+        );
+      }
+
+      // Close modal on backdrop click
+      if (this.checkoutModal) {
+        this.checkoutModal.addEventListener("click", (e) => {
+          if (e.target === this.checkoutModal) {
+            this.closeCheckoutModalHandler();
+          }
+        });
+      }
+    }
+
+    toggleChatbot() {
+      this.chatbot.classList.toggle("active");
+      this.chatbotToggle.classList.toggle("hidden");
+
+      if (this.chatbot.classList.contains("active")) {
+        this.messageInput.focus();
+      }
+    }
+
+    closeChatbot() {
+      this.chatbot.classList.remove("active");
+      this.chatbotToggle.classList.remove("hidden");
+    }
+
+    clearChat() {
+      this.messages = [];
+      this.userContext = {};
+      this.messagesContainer.innerHTML = "";
+      sessionStorage.removeItem("chatMessages");
+      sessionStorage.removeItem("userContext");
+      this.showGreeting();
+    }
+
+    loadStoredMessages() {
+      const storedMessages = sessionStorage.getItem("chatMessages");
+      const storedContext = sessionStorage.getItem("userContext");
+
+      if (storedMessages) {
+        this.messages = JSON.parse(storedMessages);
+        this.renderMessages();
+      }
+
+      if (storedContext) {
+        this.userContext = JSON.parse(storedContext);
+      }
+    }
+
+    saveMessages() {
+      sessionStorage.setItem("chatMessages", JSON.stringify(this.messages));
+      sessionStorage.setItem("userContext", JSON.stringify(this.userContext));
+    }
+
+    showGreeting() {
+      if (this.messages.length === 0) {
+        const greetingHtml = `
+        <div class="greeting-message">
+          <h3>👋 Welcome to Shopping Mate!</h3>
+          <p>I'm your AI shopping assistant. I can help you find products, manage your cart, get recommendations, and much more!</p>
+        </div>
+      `;
+        this.messagesContainer.innerHTML = greetingHtml;
+      }
+    }
+
+    async sendMessage() {
+      const message = this.messageInput.value.trim();
+      if (!message || this.isProcessing) return;
+
+      this.messageInput.value = "";
+      this.isProcessing = true;
+      this.sendBtn.disabled = true;
+
+      const userMessage = {
+        id: this.generateMessageId(),
+        type: "user",
+        content: message,
+        timestamp: new Date().toISOString(),
+        selectedProducts: [],
+      };
+
+      this.messages.push(userMessage);
+      this.renderMessage(userMessage);
+      this.saveMessages();
+
+      try {
+        const aiResponse = await this.frontendAPI.callAI(
+          message,
+          this.messages.map((msg) => ({
+            type: msg.type,
+            content: msg.content,
+            selected_product_ids: msg.selectedProducts,
+          })),
+          this.userContext
+        );
+
+        await this.handleAIResponse(aiResponse, userMessage.id);
+      } catch (error) {
+        console.error("Error processing message:", error);
+        this.addErrorMessage(
+          "Sorry, I encountered an error processing your request."
+        );
+      }
+
+      this.isProcessing = false;
+      this.sendBtn.disabled = false;
+      this.messageInput.focus();
+    }
+
+    async handleAIResponse(aiResponse, userMessageId) {
+      const botMessage = {
+        id: this.generateMessageId(),
+        type: "bot",
+        content: "",
+        timestamp: new Date().toISOString(),
+        selectedProducts: [],
+      };
+
+      const actions = aiResponse.actions || [];
+      let messageContent = document.createElement("div");
+      let shouldCheckout = false;
+
+      for (const action of actions) {
+        switch (action.task) {
+          case "response":
+            await this.handleResponse(action, messageContent);
+            break;
+          case "update-context":
+            this.handleUpdateContext(action);
+            break;
+          case "add-to-cart":
+            await this.handleAddToCart(action, botMessage.id, messageContent);
+            break;
+          case "empty-cart":
+            await this.handleEmptyCart(action, messageContent);
+            break;
+          case "view-cart":
+            await this.handleViewCart(messageContent);
+            break;
+          case "search":
+            await this.handleProductRelatedAction(
+              action,
+              botMessage.id,
+              messageContent
+            );
+            break;
+          case "compare":
+            await this.handleProductRelatedAction(
+              action,
+              botMessage.id,
+              messageContent
+            );
+            break;
+          case "recommend":
+            await this.handleRecommendation(
+              action,
+              botMessage.id,
+              messageContent
+            );
+            break;
+          case "gift-recommendation":
+            await this.handleGiftRecommendation(
+              action,
+              botMessage.id,
+              messageContent
+            );
+            break;
+          case "checkout":
+            const cartItems = await this.frontendAPI.getCartItems();
+            if (cartItems.items.length === 0) {
+              const errorSection = document.createElement("div");
+              errorSection.className = "action-section";
+              errorSection.innerHTML = `
+              <h4>❌ Checkout Error</h4>
+              <hr class="action-separator">
+              Your cart is empty. Please add some items to your cart before checkout.
+            `;
+              messageContent.appendChild(errorSection);
+            } else {
+              shouldCheckout = true;
+              const initialCheckout = document.createElement("div");
+              initialCheckout.className = "action-section";
+              initialCheckout.innerHTML = `
+              <h4>Checkout Initiated</h4>
+              <hr class="action-separator">
+              Please fill the checkout form to complete your purchase.
+            `;
+              messageContent.appendChild(initialCheckout);
+            }
+            break;
+        }
+      }
+
+      botMessage.content = messageContent.innerHTML;
+      this.messages.push(botMessage);
+      this.renderMessage(botMessage);
+      this.saveMessages();
+
+      if (shouldCheckout) {
+        setTimeout(() => this.openCheckoutModal(), 1000);
+      }
+    }
+
+    async handleResponse(action, messageContent) {
+      const message = action.message || "No response message provided";
+      const responseSection = document.createElement("div");
+      responseSection.className = "action-section";
+      responseSection.innerHTML = `
+      <h4>💬 Response</h4>
+      <hr class="action-separator">
+      ${message}
+    `;
+      messageContent.appendChild(responseSection);
+      messageContent.appendChild(document.createElement("br"));
+    }
+
+    handleUpdateContext(action) {
+      this.userContext = { ...this.userContext, ...action.context };
+      this.saveMessages();
+    }
+
+    async handleAddToCart(action, messageId, messageContent) {
+      const section = document.createElement("div");
+      section.className = "action-section";
+      section.innerHTML = `
+      <h4>🛒 Add to Cart</h4>
+      <hr class="action-separator">
+    `;
+      messageContent.appendChild(section);
+
+      for (const productId of action.product_ids || []) {
+        const loaderDiv = document.createElement("div");
+        loaderDiv.innerHTML = this.showTaskLoader(
+          `Adding product ${productId} to cart...`
+        );
+        section.appendChild(loaderDiv);
+
+        try {
+          const result = await this.frontendAPI.addToCart(
+            productId,
+            action.quantity || 1
+          );
+
+          if (result.status === "conflict") {
+            const confirmAdd = confirm(result.message + " Add anyway?");
+            if (!confirmAdd) {
+              loaderDiv.innerHTML = this.showTaskInfo(
+                `Adding product ${productId} skipped.`
+              );
+              continue;
+            }
+            const reAddResult = await this.frontendAPI.addToCart(
+              productId,
+              action.quantity || 1
+            );
+            if (reAddResult.success) {
+              loaderDiv.innerHTML = this.showTaskSuccess(
+                `Added more of ${productId} to cart.`
+              );
+              location.reload();
+            } else {
+              loaderDiv.innerHTML = this.showTaskError(
+                `Failed to add more of ${productId} to cart.`
+              );
+            }
+          } else if (result.success) {
+            const product = action.products_details.find(
+              (p) => p.id === productId
+            );
+            loaderDiv.innerHTML = this.showTaskSuccess(result.message);
+
+            const productDiv = document.createElement("div");
+            productDiv.innerHTML = this.displayProduct(product, messageId, {
+              showQuantityInput: false,
+              showSelect: false,
+            });
+            section.appendChild(productDiv);
+
+            const message = this.messages.find((m) => m.id === messageId);
+            if (message) {
+              message.selectedProducts.push(productId);
+            }
+            location.reload();
+          } else {
+            loaderDiv.innerHTML = this.showTaskError(result.message);
+          }
+        } catch (error) {
+          loaderDiv.innerHTML = this.showTaskError(
+            `Failed to add product ${productId} to cart`
+          );
+        }
+      }
+
+      const viewCartBtn = document.createElement("button");
+      viewCartBtn.className = "btn btn-secondary btn-small";
+      viewCartBtn.textContent = "View Cart";
+      viewCartBtn.onclick = () =>
+        (window.location.href = "{{ $.baseUrl }}/cart");
+      section.appendChild(viewCartBtn);
+
+      messageContent.appendChild(document.createElement("br"));
+    }
+
+    async handleEmptyCart(action, messageContent) {
+      const section = document.createElement("div");
+      section.className = "action-section";
+      section.innerHTML = `
+      <h4>🗑️ Empty Cart</h4>
+      <hr class="action-separator">
+    `;
+      messageContent.appendChild(section);
+
+      const loaderDiv = document.createElement("div");
+      loaderDiv.innerHTML = this.showTaskLoader("Emptying cart...");
+      section.appendChild(loaderDiv);
+
+      try {
+        const result = await this.frontendAPI.emptyCart();
+
+        if (result.success) {
+          loaderDiv.innerHTML = this.showTaskSuccess(
+            action.message || "Your cart has been emptied."
+          );
+          location.reload();
+        } else {
+          loaderDiv.innerHTML = this.showTaskError(result.message);
+        }
+      } catch (error) {
+        loaderDiv.innerHTML = this.showTaskError("Failed to empty cart.");
+      }
+
+      messageContent.appendChild(document.createElement("br"));
+    }
+
+    async handleViewCart(messageContent) {
+      const section = document.createElement("div");
+      section.className = "action-section";
+      section.innerHTML = `
+    <h4>🛒 Your Cart</h4>
+    <hr class="action-separator">
+  `;
+      messageContent.appendChild(section);
+
+      const loaderDiv = document.createElement("div");
+      loaderDiv.innerHTML = this.showTaskLoader("Loading cart...");
+      section.appendChild(loaderDiv);
+
+      try {
+        const cartData = await this.frontendAPI.getCartItems();
+
+        if (!cartData.items || cartData.items.length === 0) {
+          loaderDiv.innerHTML = this.showTaskSuccess("Your cart is empty");
+          const continueBtn = document.createElement("button");
+          continueBtn.className = "btn btn-primary btn-small";
+          continueBtn.textContent = "Continue Shopping";
+          continueBtn.onclick = () => (window.location.href = "/");
+          section.appendChild(continueBtn);
+        } else {
+          loaderDiv.innerHTML = this.showTaskSuccess(
+            "Cart loaded successfully"
+          );
+
+          for (const item of cartData.items) {
+            const product = item.item || {};
+            const quantity = item.quantity || 0;
+            const subtotal = item.price
+              ? item.price.units + item.price.nanos / 1e9
+              : 0;
+
+            const productCard = document.createElement("div");
+            productCard.className = "product-card";
+            productCard.innerHTML = `
+          <div class="product-image-wrapper">
+            <img src="${product.picture}" alt="${
+              product.name
+            }" class="product-image"
+                 onclick="window.location.href='/product/${product.id}'">
+          </div>
+          <div class="product-details">
+            <div><strong>ID:</strong> ${product.id}</div>
+            <div><strong>Name:</strong> ${product.name}</div>
+            <div><strong>Quantity:</strong> ${quantity}</div>
+            <div><strong>Subtotal:</strong> $${subtotal.toFixed(2)}</div>
+          </div>
+        `;
+            section.appendChild(productCard);
+          }
+
+          const shipping = cartData.shippingCost
+            ? cartData.shippingCost.units + cartData.shippingCost.nanos / 1e9
+            : 0;
+          const total = cartData.totalCost
+            ? cartData.totalCost.units + cartData.totalCost.nanos / 1e9
+            : 0;
+
+          const summaryDiv = document.createElement("div");
+          summaryDiv.className = "cart-summary";
+          summaryDiv.innerHTML = `
+        <div><strong>Shipping:</strong> $${shipping.toFixed(2)}</div>
+        <div><strong>Total:</strong> $${total.toFixed(2)}</div>
+      `;
+          section.appendChild(summaryDiv);
+
+          const buttonContainer = document.createElement("div");
+          buttonContainer.style.marginTop = "10px";
+
+          const viewCartBtn = document.createElement("button");
+          viewCartBtn.className = "btn btn-primary btn-small";
+          viewCartBtn.textContent = "View Full Cart";
+          viewCartBtn.onclick = () => (window.location.href = "/cart");
+
+          const checkoutBtn = document.createElement("button");
+          checkoutBtn.className = "btn btn-success btn-small";
+          checkoutBtn.textContent = "Checkout";
+          checkoutBtn.style.marginLeft = "5px";
+          checkoutBtn.onclick = () => this.openCheckoutModal();
+
+          buttonContainer.appendChild(viewCartBtn);
+          buttonContainer.appendChild(checkoutBtn);
+          section.appendChild(buttonContainer);
+        }
+      } catch (error) {
+        loaderDiv.innerHTML = this.showTaskError("Failed to load cart");
+      }
+
+      messageContent.appendChild(document.createElement("br"));
+    }
+
+    async handleProductRelatedAction(action, messageId, messageContent) {
+      const section = document.createElement("div");
+      section.className = "action-section";
+      section.innerHTML = `
+      <h4>${
+        action.task === "search"
+          ? "🔍 Search Results"
+          : action.task === "compare"
+          ? "⚖️ Product Comparison"
+          : "⭐ Recommendations"
+      }</h4>
+      <hr class="action-separator">
+    `;
+      messageContent.appendChild(section);
+
+      const loaderDiv = document.createElement("div");
+      loaderDiv.innerHTML = this.showTaskLoader(
+        `Loading products for ${action.task}...`
+      );
+      section.appendChild(loaderDiv);
+
+      try {
+        const products = action.products_details || [];
+
+        if (products.length === 0) {
+          loaderDiv.innerHTML = this.showTaskSuccess(
+            action.message ||
+              `No products found for ${action.task} matching your criteria.`
+          );
+        } else {
+          loaderDiv.innerHTML = this.showTaskSuccess(
+            action.message ||
+              `Found ${products.length} product(s) for ${action.task}.`
+          );
+
+          if (action.task === "compare") {
+            const comparisonDiv = document.createElement("div");
+            comparisonDiv.innerHTML = this.renderComparisonTable(products);
+            section.appendChild(comparisonDiv);
+          } else {
+            for (const product of products) {
+              const productDiv = document.createElement("div");
+              productDiv.innerHTML = this.displayProduct(product, messageId);
+              section.appendChild(productDiv);
+            }
+          }
+
+          const message = this.messages.find((m) => m.id === messageId);
+          if (message) {
+            message.selectedProducts = products.map((p) => p.id);
+          }
+
+          if (products.length > 0 && action.task !== "compare") {
+            const actionsDiv = document.createElement("div");
+            actionsDiv.innerHTML = this.renderProductActions(messageId);
+            section.appendChild(actionsDiv);
+          }
+        }
+      } catch (error) {
+        loaderDiv.innerHTML = this.showTaskError(
+          `Failed to perform ${action.task}.`
+        );
+        console.error(
+          `Error in handleProductRelatedAction for ${action.task}:`,
+          error
+        );
+      }
+
+      messageContent.appendChild(document.createElement("br"));
+    }
+
+    async handleRecommendation(action, messageId, messageContent) {
+      const section = document.createElement("div");
+      section.className = "action-section";
+      section.innerHTML = `
+      <h4>⭐ Recommendations</h4>
+      <hr class="action-separator">
+    `;
+      messageContent.appendChild(section);
+
+      const loaderDiv = document.createElement("div");
+      loaderDiv.innerHTML = this.showTaskLoader("Getting recommendations...");
+      section.appendChild(loaderDiv);
+
+      try {
+        const recommendations = await this.frontendAPI.getRecommendations();
+
+        if (recommendations.length === 0) {
+          loaderDiv.innerHTML = this.showTaskSuccess(
+            action.message || "No recommendations available at the moment"
+          );
+        } else {
+          loaderDiv.innerHTML = this.showTaskSuccess(
+            action.message ||
+              `Found ${recommendations.length} recommendation(s)`
+          );
+          for (const product of recommendations) {
+            const productDiv = document.createElement("div");
+            productDiv.innerHTML = this.displayProduct(product, messageId);
+            section.appendChild(productDiv);
+          }
+          const message = this.messages.find((m) => m.id === messageId);
+          if (message) {
+            message.selectedProducts = recommendations.map((p) => p.id);
+          }
+          const actionsDiv = document.createElement("div");
+          actionsDiv.innerHTML = this.renderProductActions(messageId);
+          section.appendChild(actionsDiv);
+        }
+      } catch (error) {
+        loaderDiv.innerHTML = this.showTaskError(
+          "Failed to get recommendations"
+        );
+        console.error("Error getting recommendations:", error);
+      }
+      messageContent.appendChild(document.createElement("br"));
+    }
+
+    async handleGiftRecommendation(action, messageId, messageContent) {
+      const section = document.createElement("div");
+      section.className = "action-section";
+      section.innerHTML = `
+      <h4>🎁 Gift Recommendations</h4>
+      <hr class="action-separator">
+    `;
+      messageContent.appendChild(section);
+
+      const loaderDiv = document.createElement("div");
+      loaderDiv.innerHTML = this.showTaskLoader(
+        "Finding gift recommendations..."
+      );
+      section.appendChild(loaderDiv);
+
+      try {
+        const recommendations = action.products_details || [];
+
+        if (recommendations.length === 0) {
+          loaderDiv.innerHTML = this.showTaskSuccess(
+            action.message ||
+              "No gift recommendations available based on the details provided."
+          );
+        } else {
+          loaderDiv.innerHTML = this.showTaskSuccess(
+            action.message ||
+              `Found ${recommendations.length} gift recommendation(s).`
+          );
+          for (const product of recommendations) {
+            const productDiv = document.createElement("div");
+            productDiv.innerHTML = this.displayProduct(product, messageId);
+            section.appendChild(productDiv);
+          }
+          const message = this.messages.find((m) => m.id === messageId);
+          if (message) {
+            message.selectedProducts = recommendations.map((p) => p.id);
+          }
+          const actionsDiv = document.createElement("div");
+          actionsDiv.innerHTML = this.renderProductActions(messageId);
+          section.appendChild(actionsDiv);
+        }
+      } catch (error) {
+        loaderDiv.innerHTML = this.showTaskError(
+          "Failed to get gift recommendations"
+        );
+        console.error("Error getting gift recommendations:", error);
+      }
+      messageContent.appendChild(document.createElement("br"));
+    }
+
+    displayProduct(product, messageId, options = {}) {
+      const { showQuantityInput = true, showSelect = true } = options;
+      const price = product.price_usd
+        ? (product.price_usd.units + product.price_usd.nanos / 1e9).toFixed(2)
+        : "N/A";
+
+      return `<div class="product-card" data-product-id="${
+        product.id
+      }" data-message-id="${messageId}">
+      ${
+        showSelect
+          ? `<input type="checkbox" class="product-selector" data-product-id="${product.id}" data-message-id="${messageId}" onchange="window.chatbot.toggleProductSelection('${product.id}', '${messageId}', this.checked)">`
+          : ""
+      } 
+      <img src="{{ $.baseUrl }}${product.picture}" alt="${
+        product.name
+      }" class="product-image"
+           onclick="window.location.href='{{ $.baseUrl }}/product/${
+             product.id
+           }'">
+      <div class="product-details">
+        <div class="product-name">${product.name}</div>
+        <div class="product-price">${price}</div>
+        <div class="product-description">${product.description}</div>
+        <div style="display: flex; align-items: center; gap: 10px; margin-top: 8px;">
+          ${
+            showQuantityInput
+              ? `<input type="number" class="quantity-input" value="1" min="1" max="10"
+                                 data-product-id="${product.id}">`
+              : ""
+          }
+        </div>
+      </div>
+    </div>`;
+    }
+
+    toggleProductSelection(productId, messageId, isSelected) {
+      const message = this.messages.find((m) => m.id === messageId);
+      if (!message) return;
+
+      if (isSelected) {
+        if (!message.selectedProducts.includes(productId)) {
+          message.selectedProducts.push(productId);
+        }
+      } else {
+        const index = message.selectedProducts.indexOf(productId);
+        if (index > -1) {
+          message.selectedProducts.splice(index, 1);
+        }
+      }
+
+      this.saveMessages();
+    }
+
+    renderComparisonTable(products) {
+      let html = `<div class="compare-container">
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>Image</th>
+            <th>Price</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+      products.forEach((product) => {
+        const price = product.price_usd
+          ? (product.price_usd.units + product.price_usd.nanos / 1e9).toFixed(2)
+          : "N/A";
+        html += `<tr>
+        <td>${product.name}</td>
+        <td><img src="{{ $.baseUrl }}${product.picture}" alt="${product.name}" class="compare-product-image"
+                 onclick="window.location.href='{{ $.baseUrl }}/product/${product.id}'"></td>
+        <td>${price}</td>
+        <td>${product.description}</td>
+      </tr>`;
+      });
+
+      html += `</tbody></table></div>`;
+      return html;
+    }
+
+    renderProductActions(messageId) {
+      return `<div style="margin-top: 15px; text-align: center;">
+      <button class="btn btn-primary btn-small" onclick="chatbot.addSelectedToCart('${messageId}')">
+        Add Selected to Cart
+      </button>
+      <button class="btn btn-success btn-small" onclick="chatbot.directCheckout('${messageId}')">
+        Checkout
+      </button>
+    </div>`;
+    }
+
+    async addSelectedToCart(messageId) {
+      const message = this.messages.find((m) => m.id === messageId);
+      if (!message || !message.selectedProducts.length) {
+        this.addErrorMessage("No products selected for this operation.");
+        return;
+      }
+
+      for (const productId of message.selectedProducts) {
+        const quantityInput = document.querySelector(
+          `input[type="number"][data-product-id="${productId}"]`
+        );
+        const quantity = quantityInput ? parseInt(quantityInput.value) : 1;
+
+        try {
+          const result = await this.frontendAPI.addToCart(productId, quantity);
+
+          if (result.status === "conflict") {
+            const confirmAdd = confirm(result.message + " Add anyway?");
+            if (!confirmAdd) {
+              this.addInfoMessage(`Adding product ${productId} skipped.`);
+              continue;
+            }
+            const reAddResult = await this.frontendAPI.addToCart(
+              productId,
+              quantity
+            );
+            if (reAddResult.success) {
+              this.addSuccessMessage(`Added more of ${productId} to cart.`);
+            } else {
+              this.addErrorMessage(
+                `Failed to add more of ${productId} to cart.`
+              );
+            }
+          } else if (result.success) {
+            this.addSuccessMessage(`Added ${productId} to cart.`);
+          } else {
+            this.addErrorMessage(`Failed to add ${productId} to cart.`);
+          }
+        } catch (error) {
+          console.error("Failed to add product to cart:", error);
+          this.addErrorMessage(`Failed to add ${productId} to cart.`);
+        }
+      }
+
+      this.addSuccessMessage("Selected products processed for cart!");
+      location.reload();
+    }
+
+    async directCheckout(messageId) {
+      const cartItems = await this.frontendAPI.getCartItems();
+      if (cartItems.items.length === 0) {
+        this.addErrorMessage(
+          "Your cart is empty. Please add some items to your cart before checkout."
+        );
+        return;
+      }
+
+      this.openCheckoutModal();
+    }
+
+    showTaskLoader(message) {
+      return `<div class="task-loader">
+      <div class="loader-spinner"></div>
+      <span>${message}</span>
+    </div>`;
+    }
+
+    showTaskSuccess(message) {
+      return `<div class="status-message status-success">${message}</div>`;
+    }
+
+    showTaskError(message) {
+      return `<div class="status-message status-error">${message}</div>`;
+    }
+
+    showTaskInfo(message) {
+      return `<div class="status-message status-info">${message}</div>`;
+    }
+
+    addInfoMessage(message) {
+      const infoMessage = {
+        id: this.generateMessageId(),
+        type: "bot",
+        content: `<div class="action-section">
+        <h4>ℹ️ Info</h4>
+        <hr class="action-separator">
+        ${message}
+      </div>`,
+        timestamp: new Date().toISOString(),
+        selectedProducts: [],
+      };
+      this.messages.push(infoMessage);
+      this.renderMessage(infoMessage);
+      this.saveMessages();
+    }
+
+    openCheckoutModal() {
+      console.log("openCheckoutModal called"); // Debug log
+      this.checkoutInitiated = true;
+
+      if (!this.checkoutModal) {
+        console.error("Checkout modal element not found!");
+        return;
+      }
+
+      if (this.checkoutForm && this.checkoutForm.dataset.submitted) {
+        delete this.checkoutForm.dataset.submitted;
+      }
+
+      // Remove any existing active class and add it fresh
+      this.checkoutModal.classList.remove("active");
+      setTimeout(() => {
+        this.checkoutModal.classList.add("active");
+        console.log("Modal should be visible now");
+      }, 10);
+    }
+
+    closeCheckoutModalHandler() {
+      console.log("closeCheckoutModalHandler called"); // Debug log
+
+      if (
+        this.checkoutInitiated &&
+        this.checkoutForm &&
+        this.checkoutForm.dataset.submitted !== "true"
+      ) {
+        this.addCancelMessage();
+      }
+
+      this.checkoutInitiated = false;
+      if (this.checkoutForm && this.checkoutForm.dataset.submitted) {
+        delete this.checkoutForm.dataset.submitted;
+      }
+
+      if (this.checkoutModal) {
+        this.checkoutModal.classList.remove("active");
+      }
+    }
+
+    async handleCheckoutSubmit(e) {
+      e.preventDefault();
+
+      const formData = new FormData(this.checkoutForm);
+      const orderData = Object.fromEntries(formData.entries());
+
+      try {
+        const result = await this.frontendAPI.processCheckout(orderData);
+
+        if (result.success) {
+          this.checkoutForm.dataset.submitted = "true";
+          this.closeCheckoutModalHandler();
+          this.addSuccessMessage(`Order placed successfully!`);
+          this.checkoutForm.reset();
+          this.checkoutInitiated = false;
+          location.reload();
+        } else {
+          alert("Checkout failed: " + result.message);
+        }
+      } catch (error) {
+        alert("Checkout failed: " + error.message);
+      }
+    }
+
+    addSuccessMessage(message) {
+      const successMessage = {
+        id: this.generateMessageId(),
+        type: "bot",
+        content: `<div class="action-section">
+        <h4>✅ Success</h4>
+        <hr class="action-separator">
+        ${message}
+      </div>`,
+        timestamp: new Date().toISOString(),
+        selectedProducts: [],
+      };
+
+      this.messages.push(successMessage);
+      this.renderMessage(successMessage);
+      this.saveMessages();
+    }
+
+    addErrorMessage(message) {
+      const errorMessage = {
+        id: this.generateMessageId(),
+        type: "bot",
+        content: `<div class="action-section">
+        <h4>❌ Error</h4>
+        <hr class="action-separator">
+        ${message}
+      </div>`,
+        timestamp: new Date().toISOString(),
+        selectedProducts: [],
+      };
+
+      this.messages.push(errorMessage);
+      this.renderMessage(errorMessage);
+      this.saveMessages();
+    }
+
+    addCancelMessage() {
+      const cancelMessage = {
+        id: this.generateMessageId(),
+        type: "bot",
+        content: `<div class="action-section">
+        <h4>❌ Checkout Cancelled</h4>
+        <hr class="action-separator">
+        Your payment has been cancelled. Your items are still in your cart if you'd like to try again later.
+      </div>`,
+        timestamp: new Date().toISOString(),
+        selectedProducts: [],
+      };
+
+      this.messages.push(cancelMessage);
+      this.renderMessage(cancelMessage);
+      this.saveMessages();
+    }
+
+    renderMessages() {
+      this.messagesContainer.innerHTML = "";
+      this.messages.forEach((message) => this.renderMessage(message));
+      if (this.messages.length === 0) {
+        this.showGreeting();
+      }
+    }
+
+    renderMessage(message) {
+      const messageEl = document.createElement("div");
+      messageEl.className = `message ${message.type}`;
+
+      if (message.type === "user") {
+        messageEl.textContent = message.content;
+        if (message.image) {
+          const imgEl = document.createElement("img");
+          imgEl.src = message.image;
+          imgEl.style.maxWidth = "100%";
+          imgEl.style.borderRadius = "8px";
+          imgEl.style.marginTop = "10px";
+          messageEl.appendChild(imgEl);
+        }
+      } else {
+        messageEl.innerHTML = message.content;
+      }
+
+      this.messagesContainer.appendChild(messageEl);
+      this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+    }
+
+    generateMessageId() {
+      return (
+        "msg_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9)
+      );
+    }
+  }
+
+  // Initialize chatbot when DOM is loaded
+  document.addEventListener("DOMContentLoaded", () => {
+    window.chatbot = new ShoppingChatbot();
+  });
+</script>
+
+<script>
+  // --- Configuration ---
+  const GOOGLE_API_KEY = "AIzaSyCPbVez_FGsQQ4p6-fchox1R-0VZ_vGDkc";
+  const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GOOGLE_API_KEY}`;
+
+  // --- Mock Database ---
+  const MOCK_DATABASE = [
+    {
+      id: "OLJCESPC7Z",
+      name: "Sunglasses",
+      price_usd_units: 19,
+      price_usd_nanos: 990000000,
+      price_usd_currency_code: "USD",
+      description:
+        "Add a modern touch to your outfits with these sleek aviator sunglasses.",
+    },
+    {
+      id: "66VCHSJNUP",
+      name: "Tank Top",
+      price_usd_units: 18,
+      price_usd_nanos: 990000000,
+      price_usd_currency_code: "USD",
+      description: "Perfectly cropped cotton tank, with a scooped neckline.",
+    },
+    {
+      id: "1YMWWN1N4O",
+      name: "Watch",
+      price_usd_units: 109,
+      price_usd_nanos: 990000000,
+      price_usd_currency_code: "USD",
+      description:
+        "This gold-tone stainless steel watch will work with most of your outfits.",
+    },
+    {
+      id: "L9ECAV7KIM",
+      name: "Loafers",
+      price_usd_units: 89,
+      price_usd_nanos: 990000000,
+      price_usd_currency_code: "USD",
+      description: "A neat addition to your summer wardrobe.",
+    },
+    {
+      id: "2ZYFJ3GM2N",
+      name: "Hairdryer",
+      price_usd_units: 24,
+      price_usd_nanos: 990000000,
+      price_usd_currency_code: "USD",
+      description:
+        "This lightweight hairdryer has 3 heat and speed settings. It's perfect for travel.",
+    },
+    {
+      id: "0PUK6V6EV0",
+      name: "Candle Holder",
+      price_usd_units: 18,
+      price_usd_nanos: 990000000,
+      price_usd_currency_code: "USD",
+      description:
+        "This small but intricate candle holder is an excellent gift.",
+    },
+    {
+      id: "LS4PSXUNUM",
+      name: "Salt & Pepper Shakers",
+      price_usd_units: 18,
+      price_usd_nanos: 490000000,
+      price_usd_currency_code: "USD",
+      description: "Add some flavor to your kitchen.",
+    },
+    {
+      id: "9SIQT8TOJO",
+      name: "Bamboo Glass Jar",
+      price_usd_units: 5,
+      price_usd_nanos: 490000000,
+      price_usd_currency_code: "USD",
+      description:
+        "This bamboo glass jar can hold 57 oz (1.7 l) and is perfect for any kitchen.",
+    },
+    {
+      id: "6E92ZMYYFZ",
+      name: "Mug",
+      price_usd_units: 8,
+      price_usd_nanos: 990000000,
+      price_usd_currency_code: "USD",
+      description: "A simple mug with a mustard interior.",
+    },
+  ];
+
+  function searchProductsInMockDB(
+    queryText = null,
+    priceMin = null,
+    priceMax = null,
+    currencyCode = "USD",
+    gender = null,
+    age = null,
+    preferences = null
+  ) {
+    const foundProductIds = [];
+    const queryTextLower = queryText ? queryText.toLowerCase() : "";
+
+    for (const product of MOCK_DATABASE) {
+      let matchText = false;
+      if (queryText) {
+        if (
+          product.id.toLowerCase().includes(queryTextLower) ||
+          product.name.toLowerCase().includes(queryTextLower) ||
+          product.description.toLowerCase().includes(queryTextLower)
+        ) {
+          matchText = true;
+        }
+      } else {
+        matchText = true;
+      }
+
+      if (!matchText) {
+        continue;
+      }
+
+      const productPriceFloat =
+        product.price_usd_units + product.price_usd_nanos / 1_000_000_000;
+      const productCurrency = product.price_usd_currency_code;
+
+      let matchPrice = true;
+      if (priceMin !== null) {
+        if (productPriceFloat < priceMin || productCurrency !== currencyCode) {
+          matchPrice = false;
+        }
+      }
+      if (priceMax !== null) {
+        if (productPriceFloat > priceMax || productCurrency !== currencyCode) {
+          matchPrice = false;
+        }
+      }
+
+      if (!matchPrice) {
+        continue;
+      }
+
+      let matchGift = true;
+      if (gender) {
+        if (
+          !product.description.toLowerCase().includes(gender.toLowerCase()) &&
+          !product.name.toLowerCase().includes(gender.toLowerCase())
+        ) {
+          matchGift = false;
+        }
+      }
+      if (age) {
+        if (
+          (age < 18 && product.description.toLowerCase().includes("adult")) ||
+          (age >= 18 && product.description.toLowerCase().includes("kid"))
+        ) {
+          matchGift = false;
+        }
+      }
+      if (preferences) {
+        if (
+          !product.description
+            .toLowerCase()
+            .includes(preferences.toLowerCase()) &&
+          !product.name.toLowerCase().includes(preferences.toLowerCase())
+        ) {
+          matchGift = false;
+        }
+      }
+
+      if (matchText && matchPrice && matchGift) {
+        foundProductIds.push(product.id);
+      }
+    }
+    return foundProductIds;
+  }
+
+  async function inBrowserAI(
+    userMessage,
+    conversationHistory = [],
+    userContext = {}
+  ) {
+    const promptParts = [
+      "You are an AI shopping assistant for an e-commerce platform. Your goal is to understand user requests and provide structured JSON actions.",
+      "You have access to a product catalog. For product-related queries, you MUST identify the intent and extract relevant parameters. Then, you MUST perform the product lookup yourself using the provided catalog and return the relevant product 'id' values in the 'product_ids' array.",
+      "Do NOT return full product details; only return the alphanumeric product IDs. The frontend will handle fetching the details.",
+      "For search queries (e.g., 'sunglasses', 'items under $20', 'show me ID 1YMWWN1N4O'), find all matching products in the catalog and return their IDs.",
+      "For 'gift-recommendation', if essential details (gender, age, preferences) are missing, ask for them. Once you have the details, find suitable products from the catalog and return their IDs.",
+      "Use conversation history and user context for better responses.",
+      "Remember every recommendation is not gift recommendation. Only use 'gift recommendation' or sentences like 'i wanted to get/find some products for someone' — such sentences explicitly mean gift recommendation.",
+      'If the user indicates checkout intent, respond ONLY with: { "task": "checkout" }.',
+      "You must ALWAYS return the result as a JSON ARRAY of actions, even if there is only ONE action. Do not return a bare JSON object. Example:",
+      '✅ Correct: [ { "task": "search", "query": "watches", "product_ids": ["1YMWWN1N4O"] } ]',
+      '❌ Wrong: { "task": "search", "query": "watches", "product_ids": ["1YMWWN1N4O"] }',
+      "If user ask anything that is like view cart or give items in cart or show cart or show me my cart or what is in my cart or what is there in my cart or anything similar to this, respond ONLY with:",
+      '✅ Correct: [ { "task": "view-cart" } ]',
+      '❌ Wrong: [{"task": "response", "message": "Your cart is currently empty."}]',
+      "Available actions (return ONLY these JSON structures inside the array):",
+      `- { "task": "response", "message": "<text>" }`,
+      `- { "task": "add-to-cart", "product_ids": ["<id1>", "<id2>"], "quantity": <number> }`,
+      `- { "task": "empty-cart", "message": "<text>" }`,
+      `- { "task": "view-cart" }`,
+      `- { "task": "search", "query": "<text>", "product_ids": ["<id1>", "<id2>"] }`,
+      `- { "task": "recommend", "product_ids": [] }`,
+      `- { "task": "gift-recommendation", "person_details": { "gender": "<text>", "age": <num>, "preferences": "<text>" }, "product_ids": ["<id1>", "<id2>"] }`,
+      `- { "task": "compare", "product_ids": ["<id1>", "<id2>"] }`,
+      `- { "task": "checkout" }`,
+      "\n--- PRODUCT CATALOG (Use this for all search and recommendation tasks) ---",
+      `${JSON.stringify(MOCK_DATABASE, null, 2)}`,
+      "\n--- USER AND CONVERSATION DETAILS ---",
+      `User Message: "${userMessage}"`,
+      `Conversation History: ${JSON.stringify(conversationHistory)}`,
+      `User Context: ${JSON.stringify(userContext)}`,
+      "\n--- INSTRUCTIONS ---",
+      "Output ONLY a valid JSON ARRAY of actions. Do not include any other text, explanations, or markdown formatting.",
+    ];
+
+    const fullPrompt = promptParts.join("\n");
+    console.log("Sending prompt to Gemini Text API...");
+
+    const textPayload = {
+      contents: [{ parts: [{ text: fullPrompt }] }],
+      generationConfig: {
+        responseMimeType: "application/json",
+      },
+    };
+
+    let geminiResult;
+    try {
+      const geminiResponse = await fetch(GEMINI_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(textPayload),
+      });
+      geminiResult = await geminiResponse.json();
+      console.log(
+        "Raw Gemini Text response:",
+        JSON.stringify(geminiResult, null, 2)
+      );
+    } catch (error) {
+      console.error("Error calling Gemini Text API:", error);
+      return {
+        actions: [
+          {
+            task: "response",
+            message:
+              "I'm having trouble connecting to the AI. Please try again later.",
+          },
+        ],
+      };
+    }
+
+    let aiOutput;
+    try {
+      aiOutput = geminiResult.candidates[0].content.parts[0].text;
+    } catch (e) {
+      console.error(
+        "Could not extract AI output from Gemini response:",
+        e,
+        geminiResult
+      );
+      return {
+        actions: [
+          {
+            task: "response",
+            message:
+              "I received an unexpected response from the AI. Please try again.",
+          },
+        ],
+      };
+    }
+
+    let parsedActions = [];
+    try {
+      parsedActions = JSON.parse(aiOutput);
+      if (!Array.isArray(parsedActions)) {
+        throw new Error("AI response is not a JSON array.");
+      }
+    } catch (e) {
+      console.error("Failed to parse AI response JSON:", e, aiOutput);
+      return {
+        actions: [
+          {
+            task: "response",
+            message:
+              "I apologize, I had trouble understanding that. Could you please rephrase?",
+          },
+        ],
+      };
+    }
+
+    const finalActions = [];
+    for (const action of parsedActions) {
+      const task = action.task;
+
+      if (task === "search" && !action.product_ids) {
+        const query = action.query || "";
+        console.log(
+          `Fallback: Performing in-memory search for query: "${query}"`
+        );
+
+        let priceMin = null;
+        let priceMax = null;
+        let currencyCode = "USD";
+
+        const priceMatch = query.match(
+          /(under|over)\s*(\d+(\.\d+)?)\s*([a-zA-Z]{3})?/i
+        );
+        if (priceMatch) {
+          const amount = parseFloat(priceMatch[2]);
+          if (priceMatch[4]) {
+            currencyCode = priceMatch[4].toUpperCase();
+          }
+          if (priceMatch[1].toLowerCase() === "under") {
+            priceMax = amount;
+          } else if (priceMatch[1].toLowerCase() === "over") {
+            priceMin = amount;
+          }
+        }
+
+        action.product_ids = searchProductsInMockDB(
+          query,
+          priceMin,
+          priceMax,
+          currencyCode
+        );
+        if (!action.message) {
+          action.message =
+            action.product_ids.length > 0
+              ? `I found some products related to '${query}'.`
+              : `I couldn't find any products related to '${query}'.`;
+        }
+      } else if (task === "gift-recommendation" && !action.product_ids) {
+        const personDetails = action.person_details || {};
+        const gender = personDetails.gender;
+        const age = personDetails.age;
+        const preferences = personDetails.preferences;
+
+        if (gender && age && preferences) {
+          console.log(
+            `Fallback: Generating gift recommendations for: ${JSON.stringify(
+              personDetails
+            )}`
+          );
+          action.product_ids = searchProductsInMockDB(
+            null,
+            null,
+            null,
+            "USD",
+            gender,
+            age,
+            preferences
+          );
+          if (!action.message) {
+            action.message =
+              action.product_ids.length > 0
+                ? `Here are some gift recommendations for a ${age} year old ${gender} with preferences for ${preferences}:`
+                : "I couldn't find specific gift recommendations based on the details provided.";
+          }
+        } else {
+          action.product_ids = [];
+        }
+      } else if (
+        (task === "add-to-cart" || task === "compare") &&
+        action.product_ids
+      ) {
+        action.product_ids = action.product_ids.filter((id) =>
+          MOCK_DATABASE.some((p) => p.id === id)
+        );
+      }
+
+      finalActions.push(action);
+    }
+
+    return { actions: finalActions };
+  }
+</script>
+
+<style>
+  /* Chatbot Toggle Button */
+  .chatbot-toggle {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #853b5c;
+    color: white;
+    padding: 15px 20px;
+    border-radius: 25px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    box-shadow: 0 4px 20px #853b5c;
+    transition: all 0.3s ease;
+    z-index: 1000;
+    user-select: none;
+  }
+
+  .status-info {
+    background: #e0f7fa;
+    color: #006064;
+    border: 1px solid #b2ebf2;
+  }
+
+  .chatbot-toggle:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px #853b5c;
+  }
+
+  .chatbot-toggle.hidden {
+    display: none;
+  }
+
+  /* Chatbot Container */
+  .chatbot-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 400px;
+    height: 600px;
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 1001;
+    animation: slideInUp 0.3s ease-out;
+  }
+
+  .chatbot-container.active {
+    display: flex;
+  }
+
+  @keyframes slideInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Chatbot Header */
+  .chatbot-header {
+    background: #853b5c;
+    color: white;
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .logo-button {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    font-weight: 600;
+    font-size: 16px;
+  }
+
+  .clear-btn {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 6px 12px;
+    border-radius: 15px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease;
+  }
+
+  .clear-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+
+  #closeBtn {
+    padding: 5px;
+    border-radius: 50%;
+    transition: background-color 0.2s ease;
+  }
+
+  #closeBtn:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+  }
+
+  /* Messages Container */
+  .chatbot-messages {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .chatbot-messages::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .chatbot-messages::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+  }
+
+  .chatbot-messages::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+  }
+
+  .chatbot-messages::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+  }
+
+  /* Message Styles */
+  .message {
+    word-wrap: break-word;
+  }
+
+  .message.user {
+    align-self: flex-end;
+    background: #853b5c;
+    color: white;
+    padding: 12px 16px;
+    border-radius: 20px 20px 5px 20px;
+    max-width: 85%;
+  }
+
+  .message.bot {
+    align-self: flex-start;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* Action Sections */
+  .action-section {
+    padding: 15px;
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e9ecef;
+    height: 100%;
+  }
+
+  .action-section h4 {
+    color: #853b5c;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .action-separator {
+    border: none;
+    height: 1px;
+    background: #853b5c;
+    margin: 10px 0;
+    opacity: 0.3;
+  }
+
+  /* Loader */
+  .task-loader {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    margin: 5px 0;
+  }
+
+  .loader-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #853b5c;
+    border-top: 2px solid #853b5c;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* Product Card */
+  .product-card {
+    display: flex;
+    gap: 15px;
+    padding: 15px;
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 12px;
+    margin: 8px 0;
+    transition: all 0.2s ease;
+    position: relative;
+  }
+
+  .product-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+  }
+
+  .product-selector {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    z-index: 10;
+  }
+
+  .product-image {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+  }
+
+  .product-image:hover {
+    transform: scale(1.05);
+  }
+
+  .product-details {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .product-name {
+    font-weight: 600;
+    color: #333;
+    font-size: 14px;
+  }
+
+  .product-price {
+    color: #853b5c;
+    font-weight: 600;
+    font-size: 16px;
+  }
+
+  .product-description {
+    color: #666;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .quantity-input {
+    width: 60px;
+    padding: 4px 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 12px;
+    margin-top: 5px;
+  }
+
+  /* Compare Table */
+  .compare-container {
+    overflow-x: auto;
+    margin: 10px 0;
+  }
+
+  .compare-table {
+    min-width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .compare-table th,
+  .compare-table td {
+    padding: 12px;
+    text-align: center;
+    border: 1px solid #e9ecef;
+  }
+
+  .compare-table th {
+    background: #f8f9fa;
+    font-weight: 600;
+    color: #333;
+    font-size: 12px;
+  }
+
+  .compare-table td {
+    font-size: 11px;
+  }
+
+  .compare-product-image {
+    width: 60px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  /* Buttons */
+  .btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    margin: 2px;
+  }
+
+  .btn-primary {
+    background: #853b5c;
+    color: white;
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px #853b5c;
+  }
+
+  .btn-secondary {
+    background: #f8f9fa;
+    color: #333;
+    border: 1px solid #dee2e6;
+  }
+
+  .btn-secondary:hover {
+    background: #e9ecef;
+  }
+
+  .btn-success {
+    background: #28a745;
+    color: white;
+  }
+
+  .btn-warning {
+    background: #ffc107;
+    color: #212529;
+  }
+
+  .btn-danger {
+    background: #dc3545;
+    color: white;
+  }
+
+  .btn-small {
+    padding: 4px 8px;
+    font-size: 10px;
+  }
+
+  /* Status Messages */
+  .status-message {
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    margin: 5px 0;
+  }
+
+  .status-success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+  }
+
+  .status-error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+  }
+
+  .status-warning {
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeaa7;
+  }
+
+  /* Form Elements */
+  .form-field {
+    margin: 10px 0;
+  }
+
+  .form-field label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    font-size: 12px;
+    color: #333;
+  }
+
+  .form-field input,
+  .form-field select,
+  .form-field textarea {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: inherit;
+  }
+
+  .form-field input:focus,
+  .form-field select:focus,
+  .form-field textarea:focus {
+    outline: none;
+    border-color: #853b5c;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2);
+  }
+
+  /* Chatbot Input */
+  .chatbot-input {
+    display: flex;
+    padding: 20px;
+    border-top: 1px solid #e9ecef;
+    background: white;
+    gap: 10px;
+  }
+
+  .chatbot-input input {
+    flex: 1;
+    padding: 12px 16px;
+    border: 1px solid #853b5c;
+    border-radius: 25px;
+    font-size: 14px;
+    outline: none;
+  }
+
+  .chatbot-input input:focus {
+    border-color: #853b5c;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  }
+
+  .chatbot-input button {
+    width: 44px;
+    height: 44px;
+    border: none;
+    background: #853b5c;
+    color: white;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+  }
+
+  .chatbot-input button:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px #853b5c;
+  }
+
+  .chatbot-input button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* Modal Styles */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+  }
+
+  .modal-overlay.active {
+    display: flex;
+  }
+
+  .modal-content {
+    background: white;
+    width: 90%;
+    max-height: 90vh;
+    max-width: 500px;
+    display: flex;
+    flex-direction: column;
+    border-radius: 12px;
+    overflow: hidden;
+    animation: modalSlideIn 0.3s ease-out;
+  }
+
+  .form-content {
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .form-content::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .form-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+  }
+
+  .form-content::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+  }
+
+  .form-content::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+  }
+
+  .form-actions {
+    flex-shrink: 0;
+  }
+
+  @keyframes modalSlideIn {
+    from {
+      opacity: 0;
+      transform: translateY(-50px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .modal-header {
+    background: #853b5c;
+    flex-shrink: 0;
+    color: white;
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .modal-header h2 {
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .close-modal {
+    cursor: pointer;
+    font-size: 24px;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background-color 0.2s ease;
+  }
+
+  .close-modal:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+  }
+
+  #checkout-form {
+    padding: 20px;
+  }
+
+  .form-group {
+    margin-bottom: 15px;
+  }
+
+  .form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: #333;
+    font-size: 14px;
+  }
+
+  .form-group input,
+  .form-group textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #853b5c;
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+  }
+
+  .form-group input:focus,
+  .form-group textarea:focus {
+    outline: none;
+    border-color: #853b5c;
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2);
+  }
+
+  .form-row {
+    display: flex;
+    gap: 15px;
+  }
+
+  .form-row .form-group {
+    flex: 1;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #e9ecef;
+  }
+
+  .form-actions button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+  }
+
+  /* Cart Summary */
+  .cart-summary {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    margin: 10px 0;
+  }
+
+  .cart-total {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    text-align: right;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #dee2e6;
+  }
+
+  /* Links */
+  a {
+    color: #853b5c;
+    text-decoration: none;
+    transition: color 0.2s ease;
+  }
+
+  a:hover {
+    color: #902655;
+    text-decoration: underline;
+  }
+
+  /* Greeting Message */
+  .greeting-message {
+    background: #853b5c;
+    color: white;
+    padding: 20px;
+    border-radius: 12px;
+    text-align: center;
+    margin-bottom: 15px;
+  }
+
+  .greeting-message h3 {
+    font-size: 18px;
+    margin-bottom: 8px;
+  }
+
+  .greeting-message p {
+    font-size: 14px;
+    opacity: 0.9;
+    line-height: 1.4;
+  }
+
+  /* Responsive Design */
+  @media (max-width: 480px) {
+    .chatbot-container {
+      width: calc(100vw - 20px);
+      height: calc(100vh - 20px);
+      bottom: 10px;
+      right: 10px;
+    }
+
+    .chatbot-toggle {
+      bottom: 10px;
+      right: 10px;
+      padding: 12px 16px;
+      font-size: 13px;
+    }
+
+    .product-card {
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .product-image {
+      width: 100%;
+      height: 120px;
+    }
+
+    .compare-table {
+      font-size: 10px;
+    }
+
+    .compare-table th,
+    .compare-table td {
+      padding: 8px;
+    }
+  }
+</style>
+
+{{ end }}
