@@ -32,6 +32,31 @@ Users can simply chat with the AI to manage their shopping experience end-to-end
 5. **GKE Autopilot** ensures scalability, with **MCP** and **A2A** supporting multi-cluster and secure communication.
 6. Response is returned to the **User** through the AI agent.
 
+## Project Structure & Custom Components
+
+This section explains the custom components and structure added to extend the Online Boutique demo with the AI Shopping Assistant.
+
+### 1. `src/shoppingmate`
+- Contains the **Dockerfile** and **Python backend code** for the AI-powered shopping assistant.
+- Implements the core logic for natural language processing, cart management, product search, recommendations, and auto-checkout.
+
+### 2. `handler.go`
+- Custom handlers added to enable the AI bot to interact with Online Boutique microservices.
+- Handles user prompts and converts them into service API calls.
+
+### 3. `main.go`
+- Added routes to connect the custom handlers.
+- Enables the AI agent to fetch responses from the backend and interact with microservices.
+
+### 4. `kustomize` folder
+- Added the **shoppingmate component** to the kustomize components.
+- Integrates the AI microservice into the deployment manifests for GKE.
+
+### Notes
+- The **frontend is made to work independently** for testing purposes.
+- The **Python backend** can also run alongside the frontend in the same deployment if needed.
+
+
 [![Architecture of
 microservices with shopping mate added](/docs/img/shopping-mate-diagram.png)](/docs/img/shopping-mate-diagram.png)
 
