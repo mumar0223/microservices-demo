@@ -15,6 +15,10 @@ Users can simply chat with the AI to manage their shopping experience end-to-end
 - 🤖 **Automated Checkout** – AI can complete checkout after user confirmation.
 - 🧠 **Personalized Suggestions** – Tailored recommendations during the shopping journey.
 
+### What's Different in Idea and Approach
+Unlike typical shopping assistants that rely on simple keyword matching, this project introduces an **original gift recommendation flow**.  
+The AI first **analyzes the entire user conversation** to understand intent, then extracts details like **age, gender, and interests** of the person user like to buy gift for. Using this context, it recommends the **most relevant and personalized gifts**, making the experience smarter and more human-like.
+
 ### Technologies
 - **Google Kubernetes Engine (GKE Autopilot)** – scalable microservice deployment.
 - **Google Generative AI APIs** – natural language understanding and recommendations.
