@@ -17,6 +17,7 @@ kind: Kustomization
 resources:
 - base
 components:
+- components/shoppingmateservice
 # - components/cymbal-branding
 # - components/google-cloud-operations
 # - components/memorystore
