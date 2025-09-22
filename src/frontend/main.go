@@ -161,6 +161,14 @@ func main() {
 	r.HandleFunc(baseUrl + "/product-meta/{ids}", svc.getProductByID).Methods(http.MethodGet)
 	r.HandleFunc(baseUrl + "/bot", svc.chatBotHandler).Methods(http.MethodPost)
 
+	// New API endpoints for Shopping Mate chatbot
+	r.HandleFunc(baseUrl+"/api/shoppingmate/query", svc.shoppingMateAIHandler).Methods(http.MethodPost)
+	r.HandleFunc(baseUrl+"/api/cart/add", svc.shoppingMateAddToCartHandler).Methods(http.MethodPost)
+	r.HandleFunc(baseUrl+"/api/cart/empty", svc.shoppingMateEmptyCartHandler).Methods(http.MethodPost)
+	r.HandleFunc(baseUrl+"/api/cart/items", svc.shoppingMateGetCartItemsHandler).Methods(http.MethodGet)
+	r.HandleFunc(baseUrl+"/api/checkout", svc.shoppingMateCheckoutHandler).Methods(http.MethodPost)
+	r.HandleFunc(baseUrl+"/api/recommendations", svc.shoppingMateGetRecommendationsHandler).Methods(http.MethodGet)
+
 	var handler http.Handler = r
 	handler = &logHandler{log: log, next: handler}     // add logging
 	handler = ensureSessionID(handler)                 // add session ID
