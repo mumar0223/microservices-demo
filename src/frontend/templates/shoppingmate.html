@@ -213,6 +213,31 @@
       this.baseUrl = baseUrl;
     }
 
+    /*
+
+    Original Code for using the HANLDER FOR HANDLING PYTHON BACKEND CODE. PLEASE TAKE CARE OF BACKEND.
+    
+    async callAI(message, conversationHistory, userContext, imageData = null) {
+      const payload = {
+        message: message,
+        conversation_history: conversationHistory,
+        user_context: userContext,
+        image: imageData
+      };
+      const response = await fetch(`${this.baseUrl}/api/shoppingmate/query`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status}`);
+      }
+      return response.json();
+    }
+    */
+
     async callAI(message, conversationHistory, userContext) {
       const aiResponse = await inBrowserAI(
         message,
@@ -2455,4 +2480,5 @@
 </style>
 
 {{ end }}
+
 
