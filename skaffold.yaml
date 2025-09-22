@@ -41,6 +41,10 @@ build:
     context: src/currencyservice
   - image: cartservice
     context: src/cartservice/src
+# Custom new added microservice
+  - image: shoppingmateservice
+    context: src/shoppingmateservice
+
     docker:
       dockerfile: Dockerfile
   - image: frontend
