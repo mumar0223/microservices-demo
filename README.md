@@ -33,7 +33,7 @@ Users can simply chat with the AI to manage their shopping experience end-to-end
 6. Response is returned to the **User** through the AI agent.
 
 [![Architecture of
-microservices with shopping mate added](docs/img/Shopping Mate Microservice.jpg)](docs/img/Shopping Mate Microservice.jpg)
+microservices with shopping mate added](docs/img/shopping_mate_diagram.jpg)](docs/img/shopping_mate_diagram.jpg)
 
 ---
 
