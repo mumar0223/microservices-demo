@@ -1,6 +1,39 @@
 <!-- <p align="center">
 <img src="/src/frontend/static/icons/Hipster_HeroLogoMaroon.svg" width="300" alt="Online Boutique" />
 </p> -->
+
+## 🧠 AI Shopping Agent (Extension)
+
+This project extends the Online Boutique demo with a new **AI Shopping Agent microservice** that enables natural language interactions for shopping.  
+Users can simply chat with the AI to manage their shopping experience end-to-end.
+
+### Features
+- 🛒 **Cart Management** – Add products, empty the cart, and view cart items through prompts.
+- 🔍 **Smart Search** – Search for products using natural language queries.
+- ⚖️ **Product Comparison** – Compare multiple items side by side.
+- 🎁 **Gift Recommendations** – Get product suggestions based on user-provided details (age, gender, interests).
+- 🤖 **Automated Checkout** – AI can complete checkout after user confirmation.
+- 🧠 **Personalized Suggestions** – Tailored recommendations during the shopping journey.
+
+### Technologies
+- **Google Kubernetes Engine (GKE Autopilot)** – scalable microservice deployment.
+- **Google Generative AI APIs** – natural language understanding and recommendations.
+- **Online Boutique Microservices** – integrates with Cart, Catalog, and Checkout.
+- **AlloyDB** – stores and serves product catalog data.
+- **MCP (Multi-Cluster Pods)** – scales services across multiple clusters.
+- **A2A (App-to-App Communication)** – secure internal service connectivity.
+- **CI/CD** – Cloud Build and GitHub Actions for deployments.
+
+### Architecture
+1. **User** sends a prompt (e.g., “Add red shoes to my cart”).
+2. **AI Shopping Agent** interprets the request and converts it into service calls.
+3. The agent communicates with **Cart, Catalog, and Checkout services** inside GKE.
+4. **AlloyDB** provides product catalog data for search, compare, and recommendations.
+5. **GKE Autopilot** ensures scalability, with **MCP** and **A2A** supporting multi-cluster and secure communication.
+6. Response is returned to the **User** through the AI agent.
+
+---
+
 ![Continuous Integration](https://github.com/GoogleCloudPlatform/microservices-demo/workflows/Continuous%20Integration%20-%20Main/Release/badge.svg)
 
 **Online Boutique** is a cloud-first microservices demo application.  The application is a
