@@ -633,3 +633,340 @@ func stringinSlice(slice []string, val string) bool {
 	}
 	return false
 }
+
+// Added some handler to make the gRPC to work with the Shopping Mate AI with custom values return
+
+func moneyAsFloat(m *pb.Money) float64 {
+	if m == nil {
+		return 0.0
+	}
+	return float64(m.GetUnits()) + float64(m.GetNanos())/1e9
+}
+
+// shoppingMateAIHandler handles requests from the Shopping Mate chatbot.
+func (fe *frontendServer) shoppingMateAIHandler(w http.ResponseWriter, r *http.Request) {
+	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
+
+	var reqPayload struct {
+		Message            string                   `json:"message"`
+		ConversationHistory []map[string]interface{} `json:"conversation_history"`
+		UserContext        map[string]interface{}   `json:"user_context"`
+		Image              string                   `json:"image,omitempty"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&reqPayload); err != nil {
+		renderHTTPError(log, r, w, errors.Wrap(err, "failed to decode request payload"), http.StatusBadRequest)
+		return
+	}
+
+	// Prepare payload for Python AI service
+	aiRequestPayload := map[string]interface{}{
+		"message":             reqPayload.Message,
+		"conversation_history": reqPayload.ConversationHistory,
+		"user_context":        reqPayload.UserContext,
+		"image":               reqPayload.Image, // Pass image data to AI service
+	}
+
+	jsonPayload, err := json.Marshal(aiRequestPayload)
+	if err != nil {
+		renderHTTPError(log, r, w, errors.Wrap(err, "failed to marshal AI request payload"), http.StatusInternalServerError)
+		return
+	}
+
+	// Make HTTP POST request to Python AI service
+	aiServiceURL := "http://" + fe.shoppingMateSvcAddr + "/process_query"
+	resp, err := http.Post(aiServiceURL, "application/json", bytes.NewBuffer(jsonPayload))
+	if err != nil {
+		renderHTTPError(log, r, w, errors.Wrap(err, "failed to call AI service"), http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		renderHTTPError(log, r, w, errors.Errorf("AI service returned non-200 status: %d, body: %s", resp.StatusCode, string(bodyBytes)), http.StatusInternalServerError)
+		return
+	}
+
+	var aiResponse struct {
+		Actions []map[string]interface{} `json:"actions"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&aiResponse); err != nil {
+		renderHTTPError(log, r, w, errors.Wrap(err, "failed to decode AI service response"), http.StatusInternalServerError)
+		return
+	}
+
+	// Process actions from AI service: Fetch full product details for product_ids
+	finalActions := []map[string]interface{}{}
+	for _, action := range aiResponse.Actions {
+		task := action["task"].(string)
+		
+		// Handle 'recommend' action specifically: call gRPC and get product details
+		if task == "recommend" {
+			recommendations, err := fe.getRecommendations(r.Context(), sessionID(r), nil) // Call existing gRPC
+			if err != nil {
+				log.Warn("failed to get recommendations from RecommendationService")
+				action["message"] = "Failed to get recommendations at this time."
+				action["products_details"] = []map[string]interface{}{} // Ensure empty products_details
+			} else {
+				detailedProducts := []map[string]interface{}{}
+				for _, p := range recommendations {
+					productMap := map[string]interface{}{
+						"id":           p.GetId(),
+						"name":         p.GetName(),
+						"description":  p.GetDescription(),
+						"picture":      p.GetPicture(),
+						"price_usd": map[string]interface{}{
+							"currencyCode": p.GetPriceUsd().GetCurrencyCode(),
+							"units":        p.GetPriceUsd().GetUnits(),
+							"nanos":        p.GetPriceUsd().GetNanos(),
+						},
+						"categories":   p.GetCategories(),
+					}
+					detailedProducts = append(detailedProducts, productMap)
+				}
+				action["products_details"] = detailedProducts
+				if action["message"] == nil || action["message"] == "" {
+					action["message"] = "Here are some recommendations for you!"
+				}
+			}
+		} else if productIDs, ok := action["product_ids"].([]interface{}); ok &&
+		   (task == "search" || task == "compare" || task == "gift-recommendation" || task == "add-to-cart") {
+			
+			detailedProducts := []map[string]interface{}{}
+			for _, id := range productIDs {
+				productIDStr := id.(string)
+				p, err := fe.getProduct(r.Context(), productIDStr) // Existing gRPC call
+				if err != nil {
+					log.WithField("product_id", productIDStr).Warn("failed to get product details from ProductCatalogService")
+					continue
+				}
+				// Convert pb.Product to a generic map for JSON serialization
+				productMap := map[string]interface{}{
+					"id":           p.GetId(),
+					"name":         p.GetName(),
+					"description":  p.GetDescription(),
+					"picture":      p.GetPicture(),
+					"price_usd": map[string]interface{}{
+						"currencyCode": p.GetPriceUsd().GetCurrencyCode(),
+						"units":        p.GetPriceUsd().GetUnits(),
+						"nanos":        p.GetPriceUsd().GetNanos(),
+					},
+					"categories":   p.GetCategories(),
+				}
+				detailedProducts = append(detailedProducts, productMap)
+			}
+			action["products_details"] = detailedProducts // Add detailed products to the action
+		}
+		finalActions = append(finalActions, action)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{"actions": finalActions}); err != nil {
+		log.Error(err)
+	}
+}
+
+// New API handler for adding products to cart with confirmation logic
+func (fe *frontendServer) shoppingMateAddToCartHandler(w http.ResponseWriter, r *http.Request) {
+        quantity, _ := strconv.ParseUint(r.FormValue("quantity"), 10, 32)
+        productID := r.FormValue("product_id")
+        payload := validator.AddToCartPayload{
+            Quantity:  quantity,
+            ProductID: productID,
+        }
+        if err := payload.Validate(); err != nil {
+            renderHTTPError(log, r, w, validator.ValidationErrorResponse(err), http.StatusUnprocessableEntity)
+            return
+        }
+        log.WithField("product", payload.ProductID).WithField("quantity", payload.Quantity).Debug("adding to cart")
+
+        p, err := fe.getProduct(r.Context(), payload.ProductID)
+        if err != nil {
+            renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve product"), http.StatusInternalServerError)
+            return
+        }
+
+        if err := fe.insertCart(r.Context(), sessionID(r), p.GetId(), int32(payload.Quantity)); err != nil {
+            renderHTTPError(log, r, w, errors.Wrap(err, "failed to add to cart"), http.StatusInternalServerError)
+            return
+        }
+        w.WriteHeader(http.StatusOK)
+}
+
+// New API handler for emptying the cart
+func (fe *frontendServer) shoppingMateEmptyCartHandler(w http.ResponseWriter, r *http.Request) {
+	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
+	userID := sessionID(r)
+
+	if err := fe.emptyCart(r.Context(), userID); err != nil {
+		renderHTTPError(log, r, w, errors.Wrap(err, "failed to empty cart"), http.StatusInternalServerError)
+		return
+	}
+	
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "Cart emptied successfully.",
+		"status":  "success",
+	})
+}
+
+// New API handler to get cart items
+func (fe *frontendServer) shoppingMateGetCartItemsHandler(w http.ResponseWriter, r *http.Request) {
+	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
+	log.Debug("view user cart (JSON)")
+
+	cart, err := fe.getCart(r.Context(), sessionID(r))
+	if err != nil {
+		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve cart"), http.StatusInternalServerError)
+		return
+	}
+
+	shippingCost, err := fe.getShippingQuote(r.Context(), cart, currentCurrency(r))
+	if err != nil {
+		renderHTTPError(log, r, w, errors.Wrap(err, "failed to get shipping quote"), http.StatusInternalServerError)
+		return
+	}
+
+	type cartItemJSON struct {
+		Item     *pb.Product `json:"item"`
+		Quantity int32       `json:"quantity"`
+		Price    *pb.Money   `json:"price"` // subtotal
+	}
+
+	items := make([]cartItemJSON, len(cart))
+	totalPrice := pb.Money{CurrencyCode: currentCurrency(r)}
+
+	for i, item := range cart {
+		p, err := fe.getProduct(r.Context(), item.GetProductId())
+		if err != nil {
+			renderHTTPError(log, r, w, errors.Wrapf(err, "could not retrieve product #%s", item.GetProductId()), http.StatusInternalServerError)
+			return
+		}
+
+		price, err := fe.convertCurrency(r.Context(), p.GetPriceUsd(), currentCurrency(r))
+		if err != nil {
+			renderHTTPError(log, r, w, errors.Wrapf(err, "could not convert currency for product #%s", item.GetProductId()), http.StatusInternalServerError)
+			return
+		}
+
+		subtotal := money.MultiplySlow(*price, uint32(item.GetQuantity()))
+		items[i] = cartItemJSON{
+			Item:     p,
+			Quantity: item.GetQuantity(),
+			Price:    &subtotal,
+		}
+		totalPrice = money.Must(money.Sum(totalPrice, subtotal))
+	}
+
+	totalPrice = money.Must(money.Sum(totalPrice, *shippingCost))
+
+	resp := map[string]interface{}{
+		"items":        items,
+		"shippingCost": shippingCost,
+		"totalCost":    &totalPrice,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.WithError(err).Error("failed to encode JSON response")
+	}
+}
+
+// New API handler to process checkout
+func (fe *frontendServer) shoppingMateCheckoutHandler(w http.ResponseWriter, r *http.Request) {
+	log.Debug("placing order")
+
+    var (
+        email         = r.FormValue("email")
+        streetAddress = r.FormValue("street_address")
+        // ... all other form values ...
+        zipCode, _    = strconv.ParseInt(r.FormValue("zip_code"), 10, 32)
+        city          = r.FormValue("city")
+        state         = r.FormValue("state")
+        country       = r.FormValue("country")
+        ccNumber      = r.FormValue("credit_card_number")
+        ccMonth, _    = strconv.ParseInt(r.FormValue("credit_card_expiration_month"), 10, 32)
+        ccYear, _     = strconv.ParseInt(r.FormValue("credit_card_expiration_year"), 10, 32)
+        ccCVV, _      = strconv.ParseInt(r.FormValue("credit_card_cvv"), 10, 32)
+    )
+
+    payload := validator.PlaceOrderPayload{
+        Email:         email,
+        StreetAddress: streetAddress,
+        ZipCode:       zipCode,
+        City:          city,
+        State:         state,
+        Country:       country,
+        CcNumber:      ccNumber,
+        CcMonth:       ccMonth,
+        CcYear:        ccYear,
+        CcCVV:         ccCVV,
+    }
+    if err := payload.Validate(); err != nil {
+        renderHTTPError(log, r, w, validator.ValidationErrorResponse(err), http.StatusUnprocessableEntity)
+        return
+    }
+
+    _, err := pb.NewCheckoutServiceClient(fe.checkoutSvcConn).
+        PlaceOrder(r.Context(), &pb.PlaceOrderRequest{
+            Email: payload.Email,
+            CreditCard: &pb.CreditCardInfo{
+                CreditCardNumber:          payload.CcNumber,
+                CreditCardExpirationMonth: int32(payload.CcMonth),
+                CreditCardExpirationYear:  int32(payload.CcYear),
+                CreditCardCvv:             int32(payload.CcCVV)},
+            UserId:       sessionID(r),
+            UserCurrency: currentCurrency(r),
+            Address: &pb.Address{
+                StreetAddress: payload.StreetAddress,
+                City:          payload.City,
+                State:         payload.State,
+                ZipCode:       int32(payload.ZipCode),
+                Country:       payload.Country},
+        })
+    if err != nil {
+        renderHTTPError(log, r, w, errors.Wrap(err, "failed to complete the order"), http.StatusInternalServerError)
+        return
+    }
+    
+    // Send a simple success response
+    w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Order placed successfully."})
+}
+
+// New API handler to get recommendations from gRPC service
+func (fe *frontendServer) shoppingMateGetRecommendationsHandler(w http.ResponseWriter, r *http.Request) {
+	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
+	
+	recommendations, err := fe.getRecommendations(r.Context(), sessionID(r), nil) // Call existing gRPC
+	if err != nil {
+		renderHTTPError(log, r, w, errors.Wrap(err, "failed to get recommendations"), http.StatusInternalServerError)
+		return
+	}
+
+	// Convert pb.Product to a generic map for JSON serialization
+	detailedProducts := []map[string]interface{}{}
+	for _, p := range recommendations {
+		productMap := map[string]interface{}{
+			"id":           p.GetId(),
+			"name":         p.GetName(),
+			"description":  p.GetDescription(),
+			"picture":      p.GetPicture(),
+			"price_usd": map[string]interface{}{
+				"currencyCode": p.GetPriceUsd().GetCurrencyCode(),
+				"units":        p.GetPriceUsd().GetUnits(),
+				"nanos":        p.GetPriceUsd().GetNanos(),
+			},
+			"categories":   p.GetCategories(),
+		}
+		detailedProducts = append(detailedProducts, productMap)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(detailedProducts); err != nil {
+		log.Error("failed to encode recommendations response: ", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+}
