@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shoppingmateservice
+  labels:
+    app: shoppingmateservice
+spec:
+  selector:
+    matchLabels:
+      app: shoppingmateservice
+  template:
+    metadata:
+      labels:
+        app: shoppingmateservice
+    spec:
+      serviceAccountName: shoppingmateservice
+      terminationGracePeriodSeconds: 5
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+      - name: server
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          privileged: false
+          readOnlyRootFilesystem: false
+        image: shoppingmateservice:sic-jss-365-g393b9c36-dirty   # Skaffold replaces with built image
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8080
+        env:
+        - name: PROJECT_ID
+          value: PROJECT_ID_VAL
+        - name: REGION
+          value: REGION_VAL
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shoppingmateservice
+  labels:
+    app: shoppingmateservice
+spec:
+  type: ClusterIP
+  selector:
+    app: shoppingmateservice
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: shoppingmateservice

@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+- shoppingmateservice.yaml
+# Optional patch to frontend if you need integration, otherwise leave empty
+# patches:
+# - patch: |-
+#     apiVersion: apps/v1
+#     kind: Deployment
+#     metadata:
+#       name: frontend
+#     spec:
+#       template:
+#         spec:
+#           containers:
+#           - name: server
+#             env:
+#             - name: ENABLE_MATE
+#               value: "true"
