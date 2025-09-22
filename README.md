@@ -32,6 +32,9 @@ Users can simply chat with the AI to manage their shopping experience end-to-end
 5. **GKE Autopilot** ensures scalability, with **MCP** and **A2A** supporting multi-cluster and secure communication.
 6. Response is returned to the **User** through the AI agent.
 
+[![Architecture of
+microservices with shopping mate added](/docs/img/architecture-diagram.png)](docs/img/Shopping Mate Microservice.jpg)
+
 ---
 
 ![Continuous Integration](https://github.com/GoogleCloudPlatform/microservices-demo/workflows/Continuous%20Integration%20-%20Main/Release/badge.svg)
