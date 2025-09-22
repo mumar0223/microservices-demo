@@ -78,6 +78,8 @@ If you’re using this demo, please **★Star** this repository to show your int
 **Online Boutique** is composed of 11 microservices written in different
 languages that talk to each other over gRPC.
 
+[![Video Title](https://img.youtube.com/vi/RQZyaJVMRDo/0.jpg)](https://www.youtube.com/watch?v=RQZyaJVMRDo)
+
 [![Architecture of
 microservices](/docs/img/architecture-diagram.png)](/docs/img/architecture-diagram.png)
 
