@@ -98,5 +98,12 @@
             </div>
         </div>
 
+<!--
+Added Frontend template of new microservice to header to be use in app
+-->
+      <div style="z-index: 9999; position: fixed; right: 0; bottom: 0;">
+      {{ template "shoppingmate" . }}
+    </div>
+      
     </header>
     {{end}}
