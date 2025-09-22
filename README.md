@@ -52,10 +52,24 @@ This section explains the custom components and structure added to extend the On
 - Added the **shoppingmate component** to the kustomize components.
 - Integrates the AI microservice into the deployment manifests for GKE.
 
-### Notes
-- The **frontend is made to work independently** for testing purposes.
-- The **Python backend** can also run alongside the frontend in the same deployment if needed.
+## Notes
 
+- The **frontend is made to work independently** for testing purposes. This allows you to test and interact with the UI without needing the backend running.
+- The **Python backend** can also run alongside the frontend in the same deployment if needed, providing a more integrated experience for full functionality.
+  
+### 1. Page Reload on Operations
+Please note that for certain actions like **Add to Cart**, **Empty Cart**, **Checkout**, and similar operations, the page will **reload upon success**. This behavior is necessary for the following reasons:
+- The **pre-built demo** does not automatically update values without a page reload.
+- These operations will not visually update in the demo without a reload, as it's designed for a more static view.
+  
+In a full implementation, you would typically use dynamic updates (like AJAX or state management) to reflect these changes without a full reload.
+
+### 2. Session Usage
+I have used **session storage** to keep track of:
+- **Cart details** (such as added products).
+- **Messages** from the Shopping Mate AI bot.
+
+This allows data to persist across page refreshes or when navigating to new pages, preventing any loss of user information. The session storage ensures that the cart and bot messages remain intact, providing a smoother and more persistent user experience.
 
 [![Architecture of
 microservices with shopping mate added](/docs/img/shopping-mate-diagram.png)](/docs/img/shopping-mate-diagram.png)
