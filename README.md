@@ -89,6 +89,9 @@ I have used **session storage** to keep track of:
 
 This allows data to persist across page refreshes or when navigating to new pages, preventing any loss of user information. The session storage ensures that the cart and bot messages remain intact, providing a smoother and more persistent user experience.
 
+### Demo Video
+[![Video Title](https://img.youtube.com/vi/RQZyaJVMRDo/0.jpg)](https://www.youtube.com/watch?v=RQZyaJVMRDo)
+
 ### Architecture of shopping mate frontend-only
 [![Architecture of
 shopping mate frontend-only](/docs/img/Frontend-Only.jpg)](/docs/img/Frontend-Only.jpg)
@@ -102,6 +105,8 @@ shopping mate frontend-and-backend](/docs/img/Frontend-and-Backend.jpg)](/docs/i
 microservices with shopping mate added](/docs/img/shopping-mate-diagram.png)](/docs/img/shopping-mate-diagram.png)
 
 ---
+
+### Original Readme
 
 ![Continuous Integration](https://github.com/GoogleCloudPlatform/microservices-demo/workflows/Continuous%20Integration%20-%20Main/Release/badge.svg)
 
@@ -118,8 +123,6 @@ If you’re using this demo, please **★Star** this repository to show your int
 
 **Online Boutique** is composed of 11 microservices written in different
 languages that talk to each other over gRPC.
-
-[![Video Title](https://img.youtube.com/vi/RQZyaJVMRDo/0.jpg)](https://www.youtube.com/watch?v=RQZyaJVMRDo)
 
 [![Architecture of
 microservices](/docs/img/architecture-diagram.png)](/docs/img/architecture-diagram.png)
