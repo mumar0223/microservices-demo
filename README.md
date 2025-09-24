@@ -2,6 +2,15 @@
 <img src="/src/frontend/static/icons/Hipster_HeroLogoMaroon.svg" width="300" alt="Online Boutique" />
 </p> -->
 
+<!-- 🔒 Authenticated Project Notice -->
+
+> **Note**  
+> This repository is the **official source** for this project.  
+> All materials here (including code, documentation, and demo media) are time-stamped and verifiable.  
+> Any other versions found elsewhere may not reflect the latest or authentic work.  
+> This microservice only works when the password is given as google@fq.com
+---
+
 ## 🧠 AI Shopping Agent (Extension)
 
 This project extends the Online Boutique demo with a new **AI Shopping Agent microservice** that enables natural language interactions for shopping.  
