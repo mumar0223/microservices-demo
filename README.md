@@ -51,7 +51,8 @@ This section explains the custom components and structure added to extend the On
 ## 1. `src/frontend/templates/shoppingmate.html`
 - Contains the HTML, CSS, and JavaScript code for the **core of the new microservice**.  
 - Handles interaction with **Gemini**, either through API calls via the Python backend or via a demo mode with a mock database and direct Gemini calls (depending on the version).  
-- Includes functions to process **user queries**: prompts sent to Gemini are handled to return the required actions for execution.  
+- Includes functions to process **user queries**: prompts sent to Gemini are handled to return the required actions for execution.
+- The mock database is recommended only for rapid testing. For complete, production-like behavior, use the Python backend integrated with AlloyDB.
 
 ## 2. `src/shoppingmate`
 - Contains the **Dockerfile** and **Python backend code** for the AI-powered shopping assistant.  
