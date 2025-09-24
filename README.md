@@ -48,21 +48,26 @@ The AI first **analyzes the entire user conversation** to understand intent, the
 
 This section explains the custom components and structure added to extend the Online Boutique demo with the AI Shopping Assistant.
 
-### 1. `src/shoppingmate`
-- Contains the **Dockerfile** and **Python backend code** for the AI-powered shopping assistant.
-- Implements the core logic for natural language processing, cart management, product search, recommendations, and auto-checkout.
+## 1. `src/frontend/templates/shoppingmate.html`
+- Contains the HTML, CSS, and JavaScript code for the **core of the new microservice**.  
+- Handles interaction with **Gemini**, either through API calls via the Python backend or via a demo mode with a mock database and direct Gemini calls (depending on the version).  
+- Includes functions to process **user queries**: prompts sent to Gemini are handled to return the required actions for execution.  
 
-### 2. `handler.go`
-- Custom handlers added to enable the AI bot to interact with Online Boutique microservices.
-- Handles user prompts and converts them into service API calls.
+## 2. `src/shoppingmate`
+- Contains the **Dockerfile** and **Python backend code** for the AI-powered shopping assistant.  
+- Implements core functionalities such as **natural language processing**, cart management, product search, recommendations, and auto-checkout.  
 
-### 3. `main.go`
-- Added routes to connect the custom handlers.
-- Enables the AI agent to fetch responses from the backend and interact with microservices.
+## 3. `handler.go`
+- Custom handlers that enable the AI bot to interact with **Online Boutique microservices**.  
+- Processes user prompts and converts them into the appropriate service API calls.  
 
-### 4. `kustomize` folder
-- Added the **shoppingmate component** to the kustomize components.
-- Integrates the AI microservice into the deployment manifests for GKE.
+## 4. `main.go`
+- Adds routes to connect the custom handlers.  
+- Allows the AI agent to fetch responses from the backend and interact with the microservices.  
+
+## 5. `kustomize` folder
+- Adds the **shoppingmate component** to the Kustomize configuration.  
+- Integrates the AI microservice into the deployment manifests for **GKE**.
 
 ## Notes
 
