@@ -4,12 +4,11 @@
 
 <!-- 🔒 Authenticated Project Notice -->
 
-> **Note**  
-> This repository is the **official source** for this project.  
-> All materials here (including code, documentation, and demo media) are time-stamped and verifiable.  
-> Any other versions found elsewhere may not reflect the latest or authentic work.  
-> This microservice only works when the password is given as google@fq.com
----
+> **Important Notice:**  
+> This repository is the original work created by Mohd Umar.  
+> All code, documentation, and media are protected under copyright law.  
+> Copying, redistributing, or using this project without permission may result in legal action.  
+> Using or cloning this repository for GKE, hackathons, competitions, or any other public submissions without authorization may lead to copyright violations and strict legal consequences.
 
 ## 🧠 AI Shopping Agent (Extension)
 
