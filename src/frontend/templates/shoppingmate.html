@@ -218,23 +218,81 @@
     Original Code for using the HANLDER FOR HANDLING PYTHON BACKEND CODE. PLEASE TAKE CARE OF BACKEND.
     
     async callAI(message, conversationHistory, userContext, imageData = null) {
-      const payload = {
-        message: message,
-        conversation_history: conversationHistory,
-        user_context: userContext,
-        image: imageData
-      };
-      const response = await fetch(`${this.baseUrl}/api/shoppingmate/query`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.status}`);
+      try {
+        // Call Go backend endpoint instead of Gemini directly
+        const response = await fetch(`${this.baseUrl}/api/shoppingmate/query`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            message: message,
+            conversation_history: conversationHistory,
+            user_context: userContext,
+            image: imageData, // Optional base64 image data
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(
+            `Backend returned ${response.status}: ${response.statusText}`
+          );
+        }
+
+        const aiResponse = await response.json();
+
+        // Validate response structure
+        if (!aiResponse.actions || !Array.isArray(aiResponse.actions)) {
+          throw new Error("Invalid response format from backend");
+        }
+
+        // Fetch product details for actions that have product_ids
+        for (const action of aiResponse.actions) {
+          if (
+            action.product_ids &&
+            Array.isArray(action.product_ids) &&
+            action.product_ids.length > 0
+          ) {
+            const needsDetails = [
+              "search",
+              "compare",
+              "gift-recommendation",
+              "add-to-cart",
+            ].includes(action.task);
+
+            if (needsDetails) {
+              const detailedProducts = [];
+              for (const productId of action.product_ids) {
+                try {
+                  const product = await this.getProductDetails(productId);
+                  detailedProducts.push(product);
+                } catch (error) {
+                  console.error(
+                    `Failed to get details for product ${productId}:`,
+                    error
+                  );
+                }
+              }
+              action.products_details = detailedProducts;
+            }
+          }
+        }
+
+        return aiResponse;
+      } catch (error) {
+        console.error("Error calling AI backend:", error);
+        // Return a fallback response
+        return {
+          actions: [
+            {
+              task: "response",
+              message:
+                "Sorry, I encountered an error connecting to the AI service. Please try again.",
+            },
+          ],
+        };
       }
-      return response.json();
     }
     */
 
@@ -2480,5 +2538,6 @@
 </style>
 
 {{ end }}
+
 
 
