@@ -647,124 +647,84 @@ func moneyAsFloat(m *pb.Money) float64 {
 func (fe *frontendServer) shoppingMateAIHandler(w http.ResponseWriter, r *http.Request) {
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 
-	var reqPayload struct {
-		Message            string                   `json:"message"`
+	// Request structure matching what Python expects
+	type Request struct {
+		Message             string                   `json:"message"`
 		ConversationHistory []map[string]interface{} `json:"conversation_history"`
-		UserContext        map[string]interface{}   `json:"user_context"`
-		Image              string                   `json:"image,omitempty"`
+		UserContext         map[string]interface{}   `json:"user_context"`
+		Image               string                   `json:"image,omitempty"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&reqPayload); err != nil {
-		renderHTTPError(log, r, w, errors.Wrap(err, "failed to decode request payload"), http.StatusBadRequest)
-		return
-	}
-
-	// Prepare payload for Python AI service
-	aiRequestPayload := map[string]interface{}{
-		"message":             reqPayload.Message,
-		"conversation_history": reqPayload.ConversationHistory,
-		"user_context":        reqPayload.UserContext,
-		"image":               reqPayload.Image, // Pass image data to AI service
-	}
-
-	jsonPayload, err := json.Marshal(aiRequestPayload)
-	if err != nil {
-		renderHTTPError(log, r, w, errors.Wrap(err, "failed to marshal AI request payload"), http.StatusInternalServerError)
-		return
-	}
-
-	// Make HTTP POST request to Python AI service
-	aiServiceURL := "http://" + fe.shoppingMateSvcAddr + "/process_query"
-	resp, err := http.Post(aiServiceURL, "application/json", bytes.NewBuffer(jsonPayload))
-	if err != nil {
-		renderHTTPError(log, r, w, errors.Wrap(err, "failed to call AI service"), http.StatusInternalServerError)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		renderHTTPError(log, r, w, errors.Errorf("AI service returned non-200 status: %d, body: %s", resp.StatusCode, string(bodyBytes)), http.StatusInternalServerError)
-		return
-	}
-
-	var aiResponse struct {
+	// Response structure from Python
+	type Response struct {
 		Actions []map[string]interface{} `json:"actions"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&aiResponse); err != nil {
-		renderHTTPError(log, r, w, errors.Wrap(err, "failed to decode AI service response"), http.StatusInternalServerError)
+
+	// Parse incoming request from frontend
+	var frontendReq Request
+	if err := json.NewDecoder(r.Body).Decode(&frontendReq); err != nil {
+		renderHTTPError(log, r, w, errors.Wrap(err, "failed to decode request"), http.StatusBadRequest)
 		return
 	}
 
-	// Process actions from AI service: Fetch full product details for product_ids
-	finalActions := []map[string]interface{}{}
-	for _, action := range aiResponse.Actions {
-		task := action["task"].(string)
-		
-		// Handle 'recommend' action specifically: call gRPC and get product details
-		if task == "recommend" {
-			recommendations, err := fe.getRecommendations(r.Context(), sessionID(r), nil) // Call existing gRPC
-			if err != nil {
-				log.Warn("failed to get recommendations from RecommendationService")
-				action["message"] = "Failed to get recommendations at this time."
-				action["products_details"] = []map[string]interface{}{} // Ensure empty products_details
-			} else {
-				detailedProducts := []map[string]interface{}{}
-				for _, p := range recommendations {
-					productMap := map[string]interface{}{
-						"id":           p.GetId(),
-						"name":         p.GetName(),
-						"description":  p.GetDescription(),
-						"picture":      p.GetPicture(),
-						"price_usd": map[string]interface{}{
-							"currencyCode": p.GetPriceUsd().GetCurrencyCode(),
-							"units":        p.GetPriceUsd().GetUnits(),
-							"nanos":        p.GetPriceUsd().GetNanos(),
-						},
-						"categories":   p.GetCategories(),
-					}
-					detailedProducts = append(detailedProducts, productMap)
-				}
-				action["products_details"] = detailedProducts
-				if action["message"] == nil || action["message"] == "" {
-					action["message"] = "Here are some recommendations for you!"
-				}
-			}
-		} else if productIDs, ok := action["product_ids"].([]interface{}); ok &&
-		   (task == "search" || task == "compare" || task == "gift-recommendation" || task == "add-to-cart") {
-			
-			detailedProducts := []map[string]interface{}{}
-			for _, id := range productIDs {
-				productIDStr := id.(string)
-				p, err := fe.getProduct(r.Context(), productIDStr) // Existing gRPC call
-				if err != nil {
-					log.WithField("product_id", productIDStr).Warn("failed to get product details from ProductCatalogService")
-					continue
-				}
-				// Convert pb.Product to a generic map for JSON serialization
-				productMap := map[string]interface{}{
-					"id":           p.GetId(),
-					"name":         p.GetName(),
-					"description":  p.GetDescription(),
-					"picture":      p.GetPicture(),
-					"price_usd": map[string]interface{}{
-						"currencyCode": p.GetPriceUsd().GetCurrencyCode(),
-						"units":        p.GetPriceUsd().GetUnits(),
-						"nanos":        p.GetPriceUsd().GetNanos(),
-					},
-					"categories":   p.GetCategories(),
-				}
-				detailedProducts = append(detailedProducts, productMap)
-			}
-			action["products_details"] = detailedProducts // Add detailed products to the action
-		}
-		finalActions = append(finalActions, action)
+	// Prepare request for Python backend
+	pythonReqBody, err := json.Marshal(frontendReq)
+	if err != nil {
+		renderHTTPError(log, r, w, errors.Wrap(err, "failed to marshal request"), http.StatusInternalServerError)
+		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(map[string]interface{}{"actions": finalActions}); err != nil {
-		log.Error(err)
+	// Call Python AI service
+	url := "http://" + fe.shoppingAssistantSvcAddr + "/process_query"
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(pythonReqBody))
+	if err != nil {
+		renderHTTPError(log, r, w, errors.Wrap(err, "failed to create request"), http.StatusInternalServerError)
+		return
 	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	// Send request to Python service
+	client := &http.Client{Timeout: 30 * time.Second}
+	res, err := client.Do(req)
+	if err != nil {
+		renderHTTPError(log, r, w, errors.Wrap(err, "failed to send request to AI service"), http.StatusInternalServerError)
+		return
+	}
+	defer res.Body.Close()
+
+	// Read response
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		renderHTTPError(log, r, w, errors.Wrap(err, "failed to read response"), http.StatusInternalServerError)
+		return
+	}
+
+	// Check for non-200 status
+	if res.StatusCode != http.StatusOK {
+		log.WithFields(logrus.Fields{
+			"status_code": res.StatusCode,
+			"response":    string(body),
+		}).Error("AI service returned non-200 status")
+		renderHTTPError(log, r, w, fmt.Errorf("AI service error: %s", string(body)), http.StatusInternalServerError)
+		return
+	}
+
+	// Parse Python response
+	var res Response
+	if err := json.Unmarshal(body, &res); err != nil {
+		renderHTTPError(log, r, w, errors.Wrap(err, "failed to unmarshal AI response"), http.StatusInternalServerError)
+		return
+	}
+
+	// Log the response for debugging
+	log.WithField("actions", res.Actions).Info("Received AI response")
+
+	// Return the response to frontend
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(res)
 }
 
 // New API handler for adding products to cart with confirmation logic
