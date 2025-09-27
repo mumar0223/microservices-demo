@@ -1,4 +1,3 @@
-# src/shoppingmate_ai_service/main.py
 import os
 import json
 from flask import Flask, request, jsonify
@@ -6,9 +5,9 @@ from google.cloud import secretmanager_v1
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_google_alloydb_pg import AlloyDBEngine, AlloyDBVectorStore
 from langchain_core.messages import HumanMessage
-import re
-
-from langchain_google_alloydb_pg import AlloyDBEngine, AlloyDBVectorStore
+from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain.tools import Tool
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 app = Flask(__name__)
 
@@ -20,7 +19,7 @@ ALLOYDB_TABLE_NAME = os.environ.get("ALLOYDB_TABLE_NAME")
 ALLOYDB_CLUSTER_NAME = os.environ.get("ALLOYDB_CLUSTER_NAME")
 ALLOYDB_INSTANCE_NAME = os.environ.get("ALLOYDB_INSTANCE_NAME")
 ALLOYDB_SECRET_NAME = os.environ.get("ALLOYDB_SECRET_NAME")
-GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY") # Ensure this is set in your deployment
+GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
 
 # --- Initialize Secret Manager Client ---
 secret_manager_client = secretmanager_v1.SecretManagerServiceClient()
@@ -39,6 +38,7 @@ def get_alloydb_password():
 
 # --- Initialize AlloyDB Engine and Vector Store ---
 vectorstore = None
+engine = None
 try:
     PGPASSWORD = get_alloydb_password()
     engine = AlloyDBEngine.from_instance(
@@ -51,210 +51,288 @@ try:
         password=PGPASSWORD
     )
 
-    # Ensure price_usd is included in metadata_columns for filtering
     vectorstore = AlloyDBVectorStore.create_sync(
         engine=engine,
         table_name=ALLOYDB_TABLE_NAME,
-        embedding_service=GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=GOOGLE_API_KEY),
+        embedding_service=GoogleGenerativeAIEmbeddings(
+            model="models/embedding-001", 
+            google_api_key=GOOGLE_API_KEY
+        ),
         id_column="id",
         content_column="description",
         embedding_column="product_embedding",
-        metadata_columns=["id", "name", "categories", "price_usd_units", "price_usd_nanos", "price_usd_currency_code"] # Include price components
+        metadata_columns=["id", "name", "categories", "price_usd_units", "price_usd_nanos", "price_usd_currency_code"]
     )
     app.logger.info("AlloyDB and Vector Store initialized successfully.")
 except Exception as e:
     app.logger.error(f"Error initializing AlloyDB or Vector Store: {e}")
-    vectorstore = None # Ensure vectorstore is None if initialization fails
+    vectorstore = None
 
-# --- Gemini Models ---
-llm_vision = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=GOOGLE_API_KEY)
-llm_text = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=GOOGLE_API_KEY)
+# --- Define Tools for Gemini to Call ---
+
+def search_products_tool(query: str, max_price: float = None, min_price: float = None, currency: str = "USD") -> str:
+    """
+    Search for products in the database using semantic similarity.
+    
+    Args:
+        query: Search query (e.g., "sunglasses", "kitchen items")
+        max_price: Maximum price filter (optional)
+        min_price: Minimum price filter (optional)
+        currency: Currency code for price filtering (default: USD)
+    
+    Returns:
+        JSON string with product IDs and basic info
+    """
+    if not vectorstore:
+        return json.dumps({"error": "Database not available"})
+    
+    try:
+        results = vectorstore.similarity_search(query, k=10)
+        
+        products = []
+        for doc in results:
+            price_units = doc.metadata.get('price_usd_units', 0)
+            price_nanos = doc.metadata.get('price_usd_nanos', 0)
+            price_code = doc.metadata.get('price_usd_currency_code', 'USD')
+            product_price = price_units + price_nanos / 1e9
+            
+            # Apply price filters
+            if price_code != currency:
+                continue
+            if min_price is not None and product_price < min_price:
+                continue
+            if max_price is not None and product_price > max_price:
+                continue
+            
+            products.append({
+                "id": doc.metadata['id'],
+                "name": doc.metadata.get('name', ''),
+                "price": product_price,
+                "currency": price_code
+            })
+        
+        return json.dumps({"products": products, "count": len(products)})
+    except Exception as e:
+        app.logger.error(f"Error in search_products_tool: {e}")
+        return json.dumps({"error": str(e)})
+
+def get_product_by_id_tool(product_id: str) -> str:
+    """
+    Get detailed information about a specific product by ID.
+    
+    Args:
+        product_id: The product ID to look up
+    
+    Returns:
+        JSON string with product details
+    """
+    if not vectorstore:
+        return json.dumps({"error": "Database not available"})
+    
+    try:
+        # Query database for specific product
+        with engine.connect() as conn:
+            result = conn.execute(
+                f"SELECT id, name, categories, price_usd_units, price_usd_nanos, price_usd_currency_code, description FROM {ALLOYDB_TABLE_NAME} WHERE id = %s",
+                (product_id,)
+            )
+            row = result.fetchone()
+            
+            if row:
+                product = {
+                    "id": row[0],
+                    "name": row[1],
+                    "categories": row[2],
+                    "price_units": row[3],
+                    "price_nanos": row[4],
+                    "currency": row[5],
+                    "description": row[6]
+                }
+                return json.dumps(product)
+            else:
+                return json.dumps({"error": f"Product {product_id} not found"})
+    except Exception as e:
+        app.logger.error(f"Error in get_product_by_id_tool: {e}")
+        return json.dumps({"error": str(e)})
+
+def get_gift_recommendations_tool(gender: str, age: int, preferences: str) -> str:
+    """
+    Get gift recommendations based on recipient details.
+    
+    Args:
+        gender: Gender of the recipient
+        age: Age of the recipient
+        preferences: Interests or preferences (e.g., "tech gadgets", "kitchen")
+    
+    Returns:
+        JSON string with recommended product IDs
+    """
+    if not vectorstore:
+        return json.dumps({"error": "Database not available"})
+    
+    try:
+        gift_query = f"gift for {age} year old {gender} who likes {preferences}"
+        results = vectorstore.similarity_search(gift_query, k=5)
+        
+        products = []
+        for doc in results:
+            products.append({
+                "id": doc.metadata['id'],
+                "name": doc.metadata.get('name', '')
+            })
+        
+        return json.dumps({"products": products, "count": len(products)})
+    except Exception as e:
+        app.logger.error(f"Error in get_gift_recommendations_tool: {e}")
+        return json.dumps({"error": str(e)})
+
+def list_product_categories_tool() -> str:
+    """
+    List all available product categories in the database.
+    
+    Returns:
+        JSON string with category list
+    """
+    if not engine:
+        return json.dumps({"error": "Database not available"})
+    
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(
+                f"SELECT DISTINCT categories FROM {ALLOYDB_TABLE_NAME}"
+            )
+            categories = [row[0] for row in result.fetchall()]
+            return json.dumps({"categories": categories})
+    except Exception as e:
+        app.logger.error(f"Error in list_product_categories_tool: {e}")
+        return json.dumps({"error": str(e)})
+
+# --- Create Tools List ---
+tools = [
+    Tool(
+        name="search_products",
+        func=search_products_tool,
+        description="Search for products using semantic similarity. Use this when the user wants to find products matching a description, category, or price range. Returns product IDs."
+    ),
+    Tool(
+        name="get_product_by_id",
+        func=get_product_by_id_tool,
+        description="Get detailed information about a specific product by ID. Use this when you need more details about a product."
+    ),
+    Tool(
+        name="get_gift_recommendations",
+        func=get_gift_recommendations_tool,
+        description="Get gift recommendations based on recipient's gender, age, and preferences. Only use when you have all three pieces of information."
+    ),
+    Tool(
+        name="list_categories",
+        func=list_product_categories_tool,
+        description="List all available product categories. Use this when user asks what types of products are available."
+    )
+]
+
+# --- Initialize Gemini with Tools ---
+llm_with_tools = ChatGoogleGenerativeAI(
+    model="gemini-1.5-flash",
+    google_api_key=GOOGLE_API_KEY,
+    temperature=0.3
+)
+
+# --- Create Agent Prompt ---
+prompt = ChatPromptTemplate.from_messages([
+    ("system", """You are an AI shopping assistant with access to a product database.
+    
+Your goal is to help users find products, make recommendations, and manage their shopping experience.
+
+When responding, ALWAYS output a JSON array of actions. Available actions:
+- {{"task": "response", "message": "<text>"}}
+- {{"task": "search", "product_ids": ["id1", "id2"], "message": "<text>"}}
+- {{"task": "add-to-cart", "product_ids": ["id1"], "quantity": <number>}}
+- {{"task": "empty-cart", "message": "<text>"}}
+- {{"task": "view-cart"}}
+- {{"task": "recommend"}}
+- {{"task": "gift-recommendation", "person_details": {{"gender": "<text>", "age": <num>, "preferences": "<text>"}}, "product_ids": ["id1"]}}
+- {{"task": "compare", "product_ids": ["id1", "id2"]}}
+- {{"task": "checkout"}}
+
+IMPORTANT RULES:
+1. Use the tools to search the database - DON'T make up product IDs
+2. For gift recommendations, if details are missing, ask for them ONE AT A TIME
+3. Extract product IDs from tool results and include them in your actions
+4. Always include helpful messages
+5. For price queries, extract the amount and use search_products tool with filters
+
+User Context: {user_context}
+"""),
+    MessagesPlaceholder(variable_name="chat_history"),
+    ("human", "{input}"),
+    MessagesPlaceholder(variable_name="agent_scratchpad")
+])
+
+# --- Create Agent ---
+agent = create_tool_calling_agent(llm_with_tools, tools, prompt)
+agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True, max_iterations=5)
 
 @app.route("/process_query", methods=['POST'])
 def process_query():
+    """Process user queries using Gemini with database tools"""
     data = request.json
     user_message = data.get('message', '')
     conversation_history = data.get('conversation_history', [])
     user_context = data.get('user_context', {})
-    image_data = data.get('image', None) # Base64 image data
+    image_data = data.get('image', None)
 
-    app.logger.info(f"Received query: '{user_message}'")
-    app.logger.info(f"Conversation History: {conversation_history}")
-    app.logger.info(f"User Context: {user_context}")
-
-    actions = []
-    room_description = ""
+    app.logger.info(f"Processing: '{user_message}'")
+    
     try:
-        # --- Step 1: Get room description from image if provided ---
-        if image_data:
-            app.logger.info("Processing image for room description...")
-            vision_message = HumanMessage(
-                content=[
-                    {"type": "text", "text": "Describe the interior design style of the room in this image."},
-                    {"type": "image_url", "image_url": image_data},
-                ]
-            )
-            vision_response = llm_vision.invoke([vision_message])
-            room_description = vision_response.content
-            app.logger.info(f"Room description from image: {room_description}")
-            actions.append({"task": "response", "message": f"I see a room with a {room_description} style."})
-
-        # --- Step 2: Determine user intent and generate actions ---
-        # IMPORTANT: The prompt is crucial for guiding the AI's behavior.
-        # It instructs the AI to return specific JSON actions and product IDs.
-        prompt_parts = [
-            "You are an AI shopping assistant for an e-commerce platform. Your goal is to understand user requests and provide structured JSON actions.",
-            "Always include a 'response' action with a helpful message.",
-            "For product-related actions (search, gift-recommendation, add-to-cart, compare), identify relevant product IDs from the catalog and include them in the 'product_ids' array.",
-            "Do NOT return full product details; only return product IDs (alphanumeric strings). The frontend will fetch details.",
-            "If the user asks for products by name, description, or ID, search the catalog and return matching product IDs.",
-            "If the user asks for products within a price range (e.g., 'under $100', 'over 50 EUR'), identify the currency and range, then search the catalog for matching product IDs.",
-            "If the user asks for products by category (e.g., 'electronics', 'clothing'), search the catalog and return matching product IDs.",
-            "For 'gift-recommendation', if any 'person_details' (gender, age, preferences) are missing, generate a 'response' action asking specifically for the next missing detail. Do NOT attempt to recommend without sufficient details. Once all details are present, find the best suited products from the database using similarity search and return their IDs.",
-            "If the user asks to 'add all' or 'add selected' to cart, use the 'latest_selected_product_ids' from the context.",
-            "If the user asks to 'empty cart', use the 'empty-cart' action.",
-            "Use conversation history and user context to provide better responses and maintain flow.",
-            "Available actions (return ONLY these JSON structures):",
-            "- { \"task\": \"response\", \"message\": \"<text>\" }",
-            "- { \"task\": \"add-to-cart\", \"product_ids\": [\"<id1>\", \"<id2>\"], \"quantity\": <number> }",
-            "- { \"task\": \"empty-cart\", \"message\": \"<text>\" }",
-            "- { \"task\": \"view-cart\" }",
-            "- { \"task\": \"search\", \"query\": \"<text>\", \"product_ids\": [\"<id1>\", \"<id2>\"] }",
-            "- { \"task\": \"recommend\" }", # AI will not provide product_ids for this, Go backend will call gRPC
-            "- { \"task\": \"gift-recommendation\", \"person_details\": { \"gender\": \"<text>\", \"age\": <num>, \"preferences\": \"<text>\" }, \"product_ids\": [\"<id1>\", \"<id2>\"] }",
-            "- { \"task\": \"compare\", \"product_ids\": [\"<id1>\", \"<id2>\"] }",
-            "- { \"task\": \"checkout\" }",
-            "- { \"task\": \"update-context\", \"context\": { \"key\": \"value\" } }",
-            f"\nUser Message: \"{user_message}\"",
-            f"\nConversation History: {json.dumps(conversation_history)}",
-            f"\nUser Context: {json.dumps(user_context)}",
-            f"\nRoom Description (if applicable): {room_description}",
-            "\nOutput ONLY a JSON array of actions. Do NOT include any other text."
-        ]
-
-        full_prompt = "\n".join(prompt_parts)
-        app.logger.info(f"Sending prompt to Gemini: {full_prompt}")
-
-        gemini_response = llm_text.invoke([HumanMessage(content=full_prompt)])
-        ai_output = gemini_response.content.strip()
-        app.logger.info(f"Raw Gemini response: {ai_output}")
-
-        # Attempt to parse the AI's response
-        parsed_actions = []
+        # Format conversation history for agent
+        chat_history = []
+        for msg in conversation_history[-5:]:  # Last 5 messages
+            if msg.get('type') == 'user':
+                chat_history.append(HumanMessage(content=msg.get('content', '')))
+        
+        # Execute agent
+        result = agent_executor.invoke({
+            "input": user_message,
+            "chat_history": chat_history,
+            "user_context": json.dumps(user_context)
+        })
+        
+        output = result.get('output', '{}')
+        app.logger.info(f"Agent output: {output}")
+        
+        # Parse the output
         try:
-            parsed_actions = json.loads(ai_output)
-            if not isinstance(parsed_actions, list):
-                raise ValueError("AI response is not a JSON array.")
-        except json.JSONDecodeError as e:
-            app.logger.error(f"Failed to parse AI response JSON: {e}. Raw response: {ai_output}")
-            actions.append({"task": "response", "message": "I apologize, I had trouble understanding that. Could you please rephrase?"})
-        except ValueError as e:
-            app.logger.error(f"Invalid AI response format: {e}. Raw response: {ai_output}")
-            actions.append({"task": "response", "message": "I received an unexpected response format. Please try again."})
-
-        # --- Process each action to perform database search if needed ---
-        for action in parsed_actions:
-            task = action.get("task")
-            
-            if vectorstore: # Ensure vectorstore is initialized
-                if task == "search":
-                    query = action.get("query", "")
-                    app.logger.info(f"Performing similarity search for query: {query}")
-                    
-                    price_min = None
-                    price_max = None
-                    currency_code = "USD" # Default currency for price filtering
-
-                    # Extract price range from query
-                    price_match = re.search(r'(under|over)\s*(\d+(\.\d+)?)\s*(USD|EUR|JPY|GBP|TRY|CAD)?', query, re.IGNORECASE)
-                    if price_match:
-                        amount = float(price_match.group(2))
-                        if price_match.group(4): # Check if currency code was captured
-                            currency_code = price_match.group(4).upper()
-                        if price_match.group(1).lower() == 'under':
-                            price_max = amount
-                        elif price_match.group(1).lower() == 'over':
-                            price_min = amount
-
-                    search_results = vectorstore.similarity_search(query, k=10) # Get top 10 similar products
-                    
-                    filtered_product_ids = []
-                    for doc in search_results:
-                        # Access price from metadata
-                        product_price_units = doc.metadata.get('price_usd_units', 0)
-                        product_price_nanos = doc.metadata.get('price_usd_nanos', 0)
-                        product_price_code = doc.metadata.get('price_usd_currency_code', 'USD')
-                        
-                        current_product_price = product_price_units + product_price_nanos / 1e9
-
-                        # Apply price filtering if specified and currency matches (or is default USD)
-                        if (price_min is None or current_product_price >= price_min) and \
-                           (price_max is None or current_product_price <= price_max) and \
-                           (product_price_code == currency_code): # Only filter if currency matches
-                            filtered_product_ids.append(doc.metadata['id'])
-                        elif price_min is None and price_max is None: # If no price filter, include all
-                            filtered_product_ids.append(doc.metadata['id'])
-
-                    action["product_ids"] = filtered_product_ids
-                    if not action.get("message"):
-                        if filtered_product_ids:
-                            action["message"] = f"I found some products related to '{query}'. Here are their IDs: {', '.join(filtered_product_ids)}"
-                        else:
-                            action["message"] = f"I couldn't find any products related to '{query}'."
-
-                elif task == "gift-recommendation":
-                    person_details = action.get("person_details", {})
-                    gender = person_details.get("gender")
-                    age = person_details.get("age")
-                    preferences = person_details.get("preferences")
-
-                    if gender and age and preferences:
-                        app.logger.info(f"Generating gift recommendations for: {person_details}")
-                        gift_query = f"gift for {age} year old {gender} with preferences for {preferences}"
-                        gift_results = vectorstore.similarity_search(gift_query, k=5)
-                        gift_product_ids = [doc.metadata['id'] for doc in gift_results]
-                        action["product_ids"] = gift_product_ids
-                        if not action.get("message"):
-                            if gift_product_ids:
-                                action["message"] = f"Here are some gift recommendations for a {age} year old {gender} with preferences for {preferences}: {', '.join(gift_product_ids)}"
-                            else:
-                                action["message"] = "I couldn't find specific gift recommendations based on the details provided."
-                    else:
-                        # If details are missing, remove product_ids and set a response message
-                        action["product_ids"] = [] # Ensure no product_ids are sent if details are incomplete
-                        if not gender:
-                            action["message"] = "To recommend a gift, I need to know the recipient's gender. What is their gender?"
-                        elif not age:
-                            action["message"] = "What is their age?"
-                        elif not preferences:
-                            action["message"] = "What are their preferences (e.g., hobbies, interests)?"
-                        action["task"] = "response" # Change task to response to just display message
-
-                elif task == "recommend":
-                    # AI will not provide product_ids for this. Go backend will call gRPC.
-                    # Ensure no product_ids are set by AI for this task.
-                    action["product_ids"] = []
-                    if not action.get("message"):
-                        action["message"] = "I can recommend some popular products for you."
-
-                elif task == "compare" and action.get("product_ids"):
-                    # AI should provide product_ids for comparison.
-                    # No additional search needed here, just ensure the IDs are passed through.
-                    app.logger.info(f"Comparing products with IDs: {action['product_ids']}")
-                    if not action.get("message"):
-                        action["message"] = f"Here are the products you asked to compare: {', '.join(action['product_ids'])}"
-                
-                elif task == "empty-cart": # Handle empty-cart action
-                    action["message"] = action.get("message", "Your cart has been emptied.")
-                    action["product_ids"] = [] # No product IDs for empty cart
-
-            actions.append(action) # Add the processed action to the list
-
+            # Try to extract JSON from the output
+            import re
+            json_match = re.search(r'\[.*\]', output, re.DOTALL)
+            if json_match:
+                actions = json.loads(json_match.group(0))
+            else:
+                # If no JSON found, wrap in response action
+                actions = [{"task": "response", "message": output}]
+        except json.JSONDecodeError:
+            actions = [{"task": "response", "message": output}]
+        
+        return jsonify({"actions": actions})
+        
     except Exception as e:
-        app.logger.error(f"An unexpected error occurred: {e}")
-        actions.append({"task": "response", "message": "An internal error occurred. Please try again later."})
+        app.logger.error(f"Error processing query: {e}", exc_info=True)
+        return jsonify({
+            "actions": [{
+                "task": "response",
+                "message": "I encountered an error. Please try again."
+            }]
+        })
 
-    return jsonify({"actions": actions})
+@app.route("/health", methods=['GET'])
+def health():
+    """Health check endpoint"""
+    return jsonify({
+        "status": "healthy",
+        "database": vectorstore is not None,
+        "tools_available": len(tools)
+    })
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=8080)
